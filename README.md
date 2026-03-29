@@ -324,20 +324,7 @@ with custom fetchers and extractors without changing any downstream code.
 
 ---
 
-## Contributing
-
-Contributions are welcome. Please open an issue or pull request on
-[GitHub](https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebPageDataExtraction).
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Make your changes and add tests
-4. Ensure the build and all tests pass (`dotnet test`)
-5. Submit a pull request
-
----
-
 ## License
 
 This project is licensed under the [MIT License](LICENSE).  
-© 2024 DeepSigma LLC
+
