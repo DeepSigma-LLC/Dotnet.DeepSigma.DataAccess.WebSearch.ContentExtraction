@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../DeepSigma.DataAccess.WebPageDataExtraction.Test/DeepSigma.DataAccess.WebPageDataExtraction.Test.csproj" />
+  <Project Path="DeepSigma.DataAccess.WebPageDataExtraction.csproj" />
+</Solution>

@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>DeepSigma.DataAccess.WebPageDataExtraction</Title>
+    <Version>1.0.0</Version>
+    <Authors>DeepSigma LLC</Authors>
+    <Description>A dotnet package for web page data extraction.</Description>
+    <PackageProjectUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebPageDataExtraction</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebPageDataExtraction.git</RepositoryUrl>
+    <PackageIcon>Assets\DeepSigma.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="Assets\DeepSigma.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+</Project>
