@@ -1,6 +1,6 @@
-using DeepSigma.DataAccess.WebPageDataExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Interfaces;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
 
 /// <summary>Parses and extracts structured content from a fetched web page.</summary>
 public interface IContentExtractor

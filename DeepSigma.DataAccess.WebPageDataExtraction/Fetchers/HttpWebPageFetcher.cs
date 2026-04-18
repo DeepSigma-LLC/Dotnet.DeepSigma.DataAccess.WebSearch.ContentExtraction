@@ -1,8 +1,8 @@
 using System.Net;
-using DeepSigma.DataAccess.WebPageDataExtraction.Interfaces;
-using DeepSigma.DataAccess.WebPageDataExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 
 /// <summary>
 /// Fetches web pages using <see cref="HttpClient"/> with automatic decompression,

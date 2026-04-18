@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
-using DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using Xunit;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Test.Fetchers;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Test.Fetchers;
 
 public sealed class HttpWebPageFetcherTests
 {

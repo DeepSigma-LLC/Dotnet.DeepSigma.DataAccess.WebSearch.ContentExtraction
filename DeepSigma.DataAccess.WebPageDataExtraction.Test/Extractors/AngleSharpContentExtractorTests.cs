@@ -1,9 +1,9 @@
 using System.Net;
-using DeepSigma.DataAccess.WebPageDataExtraction.Extractors;
-using DeepSigma.DataAccess.WebPageDataExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 using Xunit;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Test.Extractors;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Test.Extractors;
 
 public sealed class AngleSharpContentExtractorTests
 {

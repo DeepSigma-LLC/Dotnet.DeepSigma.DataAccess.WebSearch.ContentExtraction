@@ -1,9 +1,9 @@
 using System.Net;
 using Microsoft.Playwright;
-using DeepSigma.DataAccess.WebPageDataExtraction.Interfaces;
-using DeepSigma.DataAccess.WebPageDataExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 
 /// <summary>
 /// Fetches JavaScript-heavy pages by launching a headless Chromium browser via Playwright

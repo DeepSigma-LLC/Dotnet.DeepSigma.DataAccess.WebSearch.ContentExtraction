@@ -1,8 +1,8 @@
-# DeepSigma.DataAccess.WebPageDataExtraction
+# DeepSigma.DataAccess.WebSearch.ContentExtraction
 
-[![NuGet Version](https://img.shields.io/nuget/v/DeepSigma.DataAccess.WebPageDataExtraction)](https://www.nuget.org/packages/DeepSigma.DataAccess.WebPageDataExtraction)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/DeepSigma.DataAccess.WebPageDataExtraction)](https://www.nuget.org/packages/DeepSigma.DataAccess.WebPageDataExtraction)
-[![Build](https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebPageDataExtraction/actions/workflows/build.yml/badge.svg)](https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebPageDataExtraction/actions)
+[![NuGet Version](https://img.shields.io/nuget/v/DeepSigma.DataAccess.WebSearch.ContentExtraction)](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.ContentExtraction)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/DeepSigma.DataAccess.WebSearch.ContentExtraction)](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.ContentExtraction)
+[![Build](https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebSearch.ContentExtraction/actions/workflows/build.yml/badge.svg)](https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebSearch.ContentExtraction/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A .NET library for fetching and extracting clean, structured content from web pages. It separates the concerns of **fetching** HTML (over HTTP or via a headless browser) from **extracting** the meaningful article content, and returns structured data ready for indexing, ranking, or downstream processing.
@@ -62,7 +62,7 @@ A .NET library for fetching and extracting clean, structured content from web pa
 ## Installation
 
 ```shell
-dotnet add package DeepSigma.DataAccess.WebPageDataExtraction
+dotnet add package DeepSigma.DataAccess.WebSearch.ContentExtraction
 ```
 
 ---
@@ -70,8 +70,8 @@ dotnet add package DeepSigma.DataAccess.WebPageDataExtraction
 ## Quick Start
 
 ```csharp
-using DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
-using DeepSigma.DataAccess.WebPageDataExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 
 // Create instances directly — no DI required
 var fetcher   = HttpWebPageFetcher.Create();
@@ -95,7 +95,7 @@ wherever you need them.
 
 ```csharp
 // Program.cs
-using DeepSigma.DataAccess.WebPageDataExtraction.Extensions;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extensions;
 
 builder.Services.AddWebPageDataExtraction(options =>
 {
@@ -108,8 +108,8 @@ builder.Services.AddWebPageDataExtraction(options =>
 
 ```csharp
 // ArticleService.cs
-using DeepSigma.DataAccess.WebPageDataExtraction.Interfaces;
-using DeepSigma.DataAccess.WebPageDataExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 
 public class ArticleService(IWebPageFetcher fetcher, IContentExtractor extractor)
 {
@@ -126,8 +126,8 @@ public class ArticleService(IWebPageFetcher fetcher, IContentExtractor extractor
 ### Standalone (no DI)
 
 ```csharp
-using DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
-using DeepSigma.DataAccess.WebPageDataExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 
 var options = new WebPageFetcherOptions
 {
@@ -161,7 +161,7 @@ content. See [Playwright setup](#playwright-setup) for the one-time browser inst
 
 ```csharp
 // Program.cs
-using DeepSigma.DataAccess.WebPageDataExtraction.Extensions;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extensions;
 
 builder.Services.AddWebPageDataExtraction();
 builder.Services.AddPlaywrightFetcher(userAgent: "MyBot/1.0 (+https://mysite.example/bot)");
@@ -170,8 +170,8 @@ builder.Services.AddPlaywrightFetcher(userAgent: "MyBot/1.0 (+https://mysite.exa
 **Without DI:**
 
 ```csharp
-using DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
-using DeepSigma.DataAccess.WebPageDataExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 
 await using var fetcher = new PlaywrightWebPageFetcher();
 var extractor           = new SmartReaderContentExtractor();
@@ -192,8 +192,8 @@ good choice for non-article pages (product pages, landing pages, etc.) where the
 Readability algorithm returns no readable content.
 
 ```csharp
-using DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
-using DeepSigma.DataAccess.WebPageDataExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 
 var fetcher   = HttpWebPageFetcher.Create();
 var extractor = new AngleSharpContentExtractor();

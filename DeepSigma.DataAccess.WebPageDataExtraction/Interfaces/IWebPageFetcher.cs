@@ -1,6 +1,6 @@
-using DeepSigma.DataAccess.WebPageDataExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Interfaces;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
 
 /// <summary>Downloads the raw HTML of a web page.</summary>
 public interface IWebPageFetcher

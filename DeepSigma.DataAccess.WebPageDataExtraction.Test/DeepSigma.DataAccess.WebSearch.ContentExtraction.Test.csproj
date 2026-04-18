@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DeepSigma.DataAccess.WebPageDataExtraction\DeepSigma.DataAccess.WebPageDataExtraction.csproj" />
+    <ProjectReference Include="..\DeepSigma.DataAccess.WebSearch.ConentExtraction\DeepSigma.DataAccess.WebSearch.ConentExtraction.csproj" />
   </ItemGroup>
 
 </Project>

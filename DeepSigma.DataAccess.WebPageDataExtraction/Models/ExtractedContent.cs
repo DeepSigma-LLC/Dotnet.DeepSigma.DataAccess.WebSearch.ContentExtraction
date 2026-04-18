@@ -1,4 +1,4 @@
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Models;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 
 /// <summary>Structured content extracted from a web page.</summary>
 public sealed record ExtractedContent(

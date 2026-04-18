@@ -1,4 +1,4 @@
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 
 /// <summary>Configuration options for <see cref="HttpWebPageFetcher"/>.</summary>
 public sealed class WebPageFetcherOptions

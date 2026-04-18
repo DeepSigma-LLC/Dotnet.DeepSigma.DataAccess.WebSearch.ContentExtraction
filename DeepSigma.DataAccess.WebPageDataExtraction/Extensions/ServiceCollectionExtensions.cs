@@ -1,10 +1,10 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using DeepSigma.DataAccess.WebPageDataExtraction.Extractors;
-using DeepSigma.DataAccess.WebPageDataExtraction.Fetchers;
-using DeepSigma.DataAccess.WebPageDataExtraction.Interfaces;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Extensions;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Extensions;
 
 /// <summary>Extension methods for registering web page data extraction services.</summary>
 public static class ServiceCollectionExtensions

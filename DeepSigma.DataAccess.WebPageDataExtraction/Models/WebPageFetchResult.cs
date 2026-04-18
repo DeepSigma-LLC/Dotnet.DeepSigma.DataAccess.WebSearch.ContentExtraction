@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace DeepSigma.DataAccess.WebPageDataExtraction.Models;
+namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 
 /// <summary>Represents the raw result of fetching a web page.</summary>
 public sealed record WebPageFetchResult(
