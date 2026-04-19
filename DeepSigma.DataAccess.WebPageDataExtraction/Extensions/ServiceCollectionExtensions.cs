@@ -23,16 +23,17 @@ public static class ServiceCollectionExtensions
         configureOptions?.Invoke(options);
         services.AddSingleton(options);
 
-        services.AddHttpClient<IHtmlRetriver, HttpWebPageFetcher>()
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                AutomaticDecompression =
-                    DecompressionMethods.GZip | DecompressionMethods.Brotli | DecompressionMethods.Deflate,
-                AllowAutoRedirect = true,
-                MaxAutomaticRedirections = 10
-            });
+		services.AddHttpClient<IHtmlRetriver, HttpWebPageFetcher>((httpClient, sp) =>
+		    new HttpWebPageFetcher(httpClient, sp.GetRequiredService<WebPageFetcherOptions>()))
+	    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+	    {
+		    AutomaticDecompression =
+			    DecompressionMethods.GZip | DecompressionMethods.Brotli | DecompressionMethods.Deflate,
+		    AllowAutoRedirect = true,
+		    MaxAutomaticRedirections = 10
+	    });
 
-        services.AddTransient<IContentExtractor, SmartReaderContentExtractor>();
+		services.AddTransient<IContentExtractor, SmartReaderContentExtractor>();
 
         return services;
     }

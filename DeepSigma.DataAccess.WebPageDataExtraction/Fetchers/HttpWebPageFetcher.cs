@@ -119,5 +119,4 @@ public sealed class HttpWebPageFetcher : IHtmlRetriver
     private static bool IsRetryable(Exception ex, CancellationToken ct) =>
         !ct.IsCancellationRequested
         && ex is HttpRequestException or TaskCanceledException;
-
 }

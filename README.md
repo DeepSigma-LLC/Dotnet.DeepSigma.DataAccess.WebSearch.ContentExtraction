@@ -5,7 +5,7 @@
 [![Build](https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebSearch.ContentExtraction/actions/workflows/build.yml/badge.svg)](https://github.com/DeepSigma-LLC/Dotnet.DeepSigma.DataAccess.WebSearch.ContentExtraction/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A .NET library for fetching and extracting clean, structured content from web pages. It separates the concerns of **fetching** HTML (over HTTP or via a headless browser) from **extracting** the meaningful article content, and returns structured data ready for indexing, ranking, or downstream processing.
+A .NET 10 library for fetching and extracting clean, structured content from web pages. It separates the concerns of **fetching** HTML (over HTTP or via a headless browser) from **extracting** the meaningful article content, and returns structured data ready for indexing, ranking, or downstream processing.
 
 ---
 
@@ -22,10 +22,13 @@ A .NET library for fetching and extracting clean, structured content from web pa
   - [Fallback extractor (AngleSharp)](#fallback-extractor-anglesharp)
 - [Configuration](#configuration)
 - [Return types](#return-types)
-  - [WebPageFetchResult](#webpagefetchresult)
-  - [ExtractedContent](#extractedcontent)
+  - [ResponseHtmlContent](#responsehtmlcontent)
+  - [ResponseExtractedContent](#responseextractedcontent)
 - [Playwright setup](#playwright-setup)
 - [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Dependencies](#dependencies)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -40,12 +43,11 @@ A .NET library for fetching and extracting clean, structured content from web pa
   - Configurable response-size guard (default 10 MB)
   - Content-type validation (rejects non-HTML by default)
   - Exponential-backoff retry on transient failures (default 3 attempts)
-  - Captures the final URL after redirects
 - **`PlaywrightWebPageFetcher`** — renders pages in headless Chromium and captures the post-JavaScript HTML; lazy browser initialisation with thread-safe setup
 - **`SmartReaderContentExtractor`** — extracts article title, byline, excerpt, publication date, language, and clean plain text using [SmartReader](https://github.com/strumenta/SmartReader) (a .NET port of Mozilla Readability); automatically strips navigation, ads, footers, and sidebars
 - **`AngleSharpContentExtractor`** — CSS-selector-based fallback extractor powered by [AngleSharp](https://anglesharp.github.io/); useful for non-article pages or when Readability returns no readable content
-- Clean interfaces (`IWebPageFetcher`, `IContentExtractor`) for easy substitution and testing
-- Structured `ExtractedContent` record — drop-in for ranking, search indexing, or storage pipelines
+- Clean interfaces (`IHtmlRetriver`, `IContentExtractor`) from [`DeepSigma.DataAccess.WebSearch.Abstraction`](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.Abstraction) for easy substitution and testing
+- Structured `ResponseExtractedContent` record — drop-in for ranking, search indexing, or storage pipelines
 - First-class ASP.NET Core DI support via `AddWebPageDataExtraction()`
 
 ---
@@ -77,8 +79,8 @@ using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 var fetcher   = HttpWebPageFetcher.Create();
 var extractor = new SmartReaderContentExtractor();
 
-WebPageFetchResult page    = await fetcher.FetchAsync("https://example.com/article");
-ExtractedContent   content = await extractor.ExtractAsync(page);
+var page    = await fetcher.FetchContentAsync("https://example.com/article");
+var content = await extractor.ExtractedContentAsync(page);
 
 Console.WriteLine(content.Title);
 Console.WriteLine(content.MainText);
@@ -90,7 +92,7 @@ Console.WriteLine(content.MainText);
 
 ### With ASP.NET Core / Generic Host (DI)
 
-Register all services in one call, then inject `IWebPageFetcher` and `IContentExtractor`
+Register all services in one call, then inject `IHtmlRetriver` and `IContentExtractor`
 wherever you need them.
 
 ```csharp
@@ -108,15 +110,15 @@ builder.Services.AddWebPageDataExtraction(options =>
 
 ```csharp
 // ArticleService.cs
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.Abstraction;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
-public class ArticleService(IWebPageFetcher fetcher, IContentExtractor extractor)
+public class ArticleService(IHtmlRetriver fetcher, IContentExtractor extractor)
 {
-    public async Task<ExtractedContent> GetArticleAsync(string url, CancellationToken ct = default)
+    public async Task<ResponseExtractedContent> GetArticleAsync(string url, CancellationToken ct = default)
     {
-        var page = await fetcher.FetchAsync(url, ct);
-        return await extractor.ExtractAsync(page, ct);
+        var page = await fetcher.FetchContentAsync(url, ct);
+        return await extractor.ExtractedContentAsync(page, ct);
     }
 }
 ```
@@ -139,8 +141,8 @@ var options = new WebPageFetcherOptions
 var fetcher   = HttpWebPageFetcher.Create(options);
 var extractor = new SmartReaderContentExtractor();
 
-var page    = await fetcher.FetchAsync("https://example.com/article");
-var content = await extractor.ExtractAsync(page);
+var page    = await fetcher.FetchContentAsync("https://example.com/article");
+var content = await extractor.ExtractedContentAsync(page);
 
 Console.WriteLine($"Title   : {content.Title}");
 Console.WriteLine($"Byline  : {content.Byline}");
@@ -176,8 +178,8 @@ using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 await using var fetcher = new PlaywrightWebPageFetcher();
 var extractor           = new SmartReaderContentExtractor();
 
-var page    = await fetcher.FetchAsync("https://example.com/spa-page");
-var content = await extractor.ExtractAsync(page);
+var page    = await fetcher.FetchContentAsync("https://example.com/spa-page");
+var content = await extractor.ExtractedContentAsync(page);
 ```
 
 > `PlaywrightWebPageFetcher` implements `IAsyncDisposable`. Always dispose it (`await using`)
@@ -198,8 +200,8 @@ using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 var fetcher   = HttpWebPageFetcher.Create();
 var extractor = new AngleSharpContentExtractor();
 
-var page    = await fetcher.FetchAsync("https://example.com/product");
-var content = await extractor.ExtractAsync(page);
+var page    = await fetcher.FetchContentAsync("https://example.com/product");
+var content = await extractor.ExtractedContentAsync(page);
 
 Console.WriteLine(content.MainText);
 ```
@@ -208,11 +210,11 @@ Console.WriteLine(content.MainText);
 `AngleSharpContentExtractor` when `MainText` is empty:
 
 ```csharp
-var page = await fetcher.FetchAsync(url, ct);
+var page = await fetcher.FetchContentAsync(url, ct);
 
-var smart   = await smartExtractor.ExtractAsync(page, ct);
+var smart   = await smartExtractor.ExtractedContentAsync(page, ct);
 var content = string.IsNullOrWhiteSpace(smart.MainText)
-    ? await angleSharpExtractor.ExtractAsync(page, ct)
+    ? await angleSharpExtractor.ExtractedContentAsync(page, ct)
     : smart;
 ```
 
@@ -224,7 +226,7 @@ var content = string.IsNullOrWhiteSpace(smart.MainText)
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `UserAgent` | `string` | `"DeepSigmaBot/1.0 (…)"` | Value of the `User-Agent` request header |
+| `UserAgent` | `string` | `"DefaultUserAgent/1.0"` | Value of the `User-Agent` request header |
 | `Timeout` | `TimeSpan` | `00:00:30` | Per-request timeout |
 | `MaxRetries` | `int` | `3` | Maximum attempts (includes the first try); retries use exponential backoff |
 | `MaxResponseSizeBytes` | `long` | `10485760` (10 MB) | Requests exceeding this size throw `InvalidOperationException` |
@@ -234,32 +236,34 @@ var content = string.IsNullOrWhiteSpace(smart.MainText)
 
 ## Return types
 
-### `WebPageFetchResult`
+### `ResponseHtmlContent`
 
-Returned by `IWebPageFetcher.FetchAsync`. Contains the raw fetch output.
+Returned by `IHtmlRetriver.FetchContentAsync`. Contains the raw fetch output.
 
 | Property | Type | Description |
 |---|---|---|
-| `Url` | `string` | Final URL after any redirects |
-| `Html` | `string` | Full HTML source of the page |
+| `URL` | `string` | The URL of the fetched page |
+| `HTML` | `string` | Full HTML source of the page |
+| `FetchedAt` | `DateTimeOffset` | Timestamp when the content was fetched |
 | `ContentType` | `string?` | Value of the `Content-Type` media type header (e.g. `"text/html"`) |
 | `StatusCode` | `HttpStatusCode` | HTTP response status code |
+| `SourceUrlRetrival` | `ResponseUrlRetrival?` | Optional metadata about the URL source |
 
 ---
 
-### `ExtractedContent`
+### `ResponseExtractedContent`
 
-Returned by `IContentExtractor.ExtractAsync`. Contains the structured, cleaned content.
+Returned by `IContentExtractor.ExtractedContentAsync`. Contains the structured, cleaned content.
 
 | Property | Type | Description |
 |---|---|---|
-| `Url` | `string` | Source URL (passed through from `WebPageFetchResult`) |
+| `MainText` | `string` | Clean, plain-text body of the article (empty string when not readable) |
 | `Title` | `string?` | Page or article title |
 | `Byline` | `string?` | Author / byline (populated by `SmartReaderContentExtractor`) |
-| `Excerpt` | `string?` | Short summary or meta description |
-| `MainText` | `string` | Clean, plain-text body of the article (empty string when not readable) |
+| `Snippet` | `string?` | Short summary or meta description |
 | `Language` | `string?` | BCP 47 language tag (e.g. `"en"`, `"fr"`) |
 | `PublishedAt` | `DateTimeOffset?` | Publication date parsed from page metadata; `null` if not found |
+| `SourceHtmlContent` | `ResponseHtmlContent?` | Optional reference back to the source HTML |
 
 ---
 
@@ -298,13 +302,13 @@ The library is split into two independent concerns connected by a single interme
 
 ```
 ┌──────────────────────────────────┐
-│          IWebPageFetcher         │
+│           IHtmlRetriver          │
 │                                  │
 │  HttpWebPageFetcher              │  ← HTTP with retry (default)
 │  PlaywrightWebPageFetcher        │  ← headless Chromium (JS pages)
 └────────────────┬─────────────────┘
-                 │ WebPageFetchResult
-                 │  (Url, Html, ContentType, StatusCode)
+                 │ ResponseHtmlContent
+                 │  (URL, HTML, FetchedAt, ContentType, StatusCode)
                  ▼
 ┌──────────────────────────────────┐
 │         IContentExtractor        │
@@ -312,8 +316,8 @@ The library is split into two independent concerns connected by a single interme
 │  SmartReaderContentExtractor     │  ← Mozilla Readability (primary)
 │  AngleSharpContentExtractor      │  ← CSS selectors (fallback)
 └────────────────┬─────────────────┘
-                 │ ExtractedContent
-                 │  (Title, Byline, Excerpt, MainText, Language, PublishedAt)
+                 │ ResponseExtractedContent
+                 │  (Title, Byline, Snippet, MainText, Language, PublishedAt)
                  ▼
           downstream use
     (indexing, ranking, storage)
@@ -321,6 +325,60 @@ The library is split into two independent concerns connected by a single interme
 
 The interfaces are intentionally thin so implementations can be swapped in tests or replaced
 with custom fetchers and extractors without changing any downstream code.
+
+---
+
+## Project Structure
+
+```
+DeepSigma.DataAccess.WebPageDataExtraction/
+├── Extractors/
+│   ├── AngleSharpContentExtractor.cs    # AngleSharp-based fallback extractor
+│   └── SmartReaderContentExtractor.cs   # Mozilla Readability extractor (recommended)
+├── Extensions/
+│   └── ServiceCollectionExtensions.cs   # DI registration helpers
+├── Fetchers/
+│   ├── HttpWebPageFetcher.cs            # HTTP-based page fetcher
+│   ├── PlaywrightWebPageFetcher.cs      # Headless Chromium fetcher
+│   └── WebPageFetcherOptions.cs         # Fetcher configuration
+└── DeepSigma.DataAccess.WebSearch.ContentExtraction.csproj
+
+DeepSigma.DataAccess.WebPageDataExtraction.Test/
+├── Extractors/
+│   ├── AngleSharpContentExtractorTests.cs
+│   └── SmartReaderContentExtractorTests.cs
+├── Fetchers/
+│   └── HttpWebPageFetcherTests.cs
+└── DeepSigma.DataAccess.WebSearch.ContentExtraction.Test.csproj
+```
+
+---
+
+## Dependencies
+
+| Package | Purpose |
+|---|---|
+| [AngleSharp](https://www.nuget.org/packages/AngleSharp) | HTML parsing for the AngleSharp extractor |
+| [SmartReader](https://www.nuget.org/packages/SmartReader) | Mozilla Readability port for article extraction |
+| [Microsoft.Playwright](https://www.nuget.org/packages/Microsoft.Playwright) | Headless browser automation |
+| [DeepSigma.DataAccess.WebSearch.Abstraction](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.Abstraction) | Shared interfaces (`IHtmlRetriver`, `IContentExtractor`) and models |
+| [Microsoft.Extensions.DependencyInjection.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection.Abstractions) | DI integration |
+| [Microsoft.Extensions.Http](https://www.nuget.org/packages/Microsoft.Extensions.Http) | `IHttpClientFactory` / typed client support |
+
+---
+
+## Testing
+
+The solution includes an xUnit v3 test project. Run all tests with:
+
+```shell
+dotnet test
+```
+
+Test classes cover:
+- `HttpWebPageFetcherTests` — integration tests for the HTTP fetcher
+- `AngleSharpContentExtractorTests` — unit tests for AngleSharp extraction
+- `SmartReaderContentExtractorTests` — unit tests for SmartReader extraction
 
 ---
 
