@@ -49,7 +49,7 @@ public sealed class HttpWebPageFetcherTests
         var result = await fetcher.FetchContentAsync(SampleUrl, CancellationToken.None);
 
         Assert.Equal(SampleUrl, result.SourceUrlRetrival?.Url);
-        Assert.Equal(SampleHtml, result.HTML);
+        Assert.Equal(SampleHtml, result.Html);
         Assert.Equal("text/html", result.ContentType);
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
     }
@@ -60,7 +60,7 @@ public sealed class HttpWebPageFetcherTests
         const string redirectedUrl = "https://example.com/canonical-article";
         var fetcher = BuildFetcher(_ => HtmlResponse(finalUrl: redirectedUrl));
 
-        var result = await fetcher.FetchContentAsync(SampleUrl);
+        var result = await fetcher.FetchContentAsync(SampleUrl, CancellationToken.None);
 
         Assert.Equal(redirectedUrl, result.SourceUrlRetrival?.Url);
     }
@@ -116,7 +116,7 @@ public sealed class HttpWebPageFetcherTests
         var result = await fetcher.FetchContentAsync(SampleUrl);
 
         Assert.Equal(3, callCount);
-        Assert.Equal(SampleHtml, result.HTML);
+        Assert.Equal(SampleHtml, result.Html);
     }
 
     [Fact]

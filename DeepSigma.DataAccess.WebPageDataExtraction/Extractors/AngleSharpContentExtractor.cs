@@ -24,25 +24,25 @@ public sealed class AngleSharpContentExtractor : IContentExtractor
 	/// <param name="url">The URL of the page.</param>
 	/// <param name="cancellationToken">An optional cancellation token.</param>
 	/// <returns>A task that represents the asynchronous operation. The task result contains the extracted content.</returns>
-	public async Task<ResponseExtractedContent> ExtractedContentAsync(string html, string? url = null, CancellationToken? cancellationToken = null)
+	public async Task<ResponseExtractedContent> ExtractContentAsync(string html, string? url = null, CancellationToken cancellationToken = default)
 	{
         ResponseHtmlContent pageResponseContent = new(
-            URL: url ?? string.Empty,
-            HTML: html,
+            Url: url ?? string.Empty,
+            Html: html,
             FetchedAt: DateTimeOffset.UtcNow,
             ContentType: "text/html",
             StatusCode: System.Net.HttpStatusCode.OK
         );
-		return await ExtractedContentAsync(pageResponseContent, cancellationToken ?? CancellationToken.None);
+		return await ExtractContentAsync(pageResponseContent, cancellationToken);
 	}
 
 
 	/// <inheritdoc/>
-	public async Task<ResponseExtractedContent> ExtractedContentAsync(ResponseHtmlContent pageResponseContent, CancellationToken? cancellationToken = default)
+	public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent pageResponseContent, CancellationToken cancellationToken = default)
     {
         var config = Configuration.Default;
         var context = BrowsingContext.New(config);
-        var document = await context.OpenAsync(req => req.Content(pageResponseContent.HTML), cancellationToken ?? CancellationToken.None);
+        var document = await context.OpenAsync(req => req.Content(pageResponseContent.Html), cancellationToken);
         var title = document.QuerySelector("title")?.TextContent?.Trim()
                     ?? document.QuerySelector("h1")?.TextContent?.Trim();
 

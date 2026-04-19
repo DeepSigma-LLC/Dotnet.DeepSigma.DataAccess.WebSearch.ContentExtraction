@@ -14,7 +14,7 @@ namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 /// See https://playwright.dev/dotnet/docs/intro for setup instructions.
 /// </para>
 /// </summary>
-public sealed class PlaywrightWebPageFetcher : IHtmlRetriver, IAsyncDisposable
+public sealed class PlaywrightWebPageFetcher : IHtmlRetriever, IAsyncDisposable
 {
     private readonly string _userAgent;
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -36,7 +36,7 @@ public sealed class PlaywrightWebPageFetcher : IHtmlRetriver, IAsyncDisposable
     /// <param name="cancellationToken">An optional token to monitor for cancellation requests.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseHtmlContent object with
     /// the retrieved HTML content.</returns>
-	public Task<ResponseHtmlContent> FetchContentAsync(string url, CancellationToken? cancellationToken = null)
+	public Task<ResponseHtmlContent> FetchContentAsync(string url, CancellationToken cancellationToken = default)
 	{
 		ResponseUrlRetrival response = new(
             Url: url,
@@ -49,9 +49,9 @@ public sealed class PlaywrightWebPageFetcher : IHtmlRetriver, IAsyncDisposable
 	}
 
 	/// <inheritdoc/>
-	public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival response, CancellationToken? ct = default)
+	public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival response, CancellationToken cancellationToken = default)
     {
-        var browser = await EnsureBrowserAsync(ct ?? CancellationToken.None);
+        var browser = await EnsureBrowserAsync(cancellationToken);
         var page = await browser.NewPageAsync();
         try
         {
@@ -65,8 +65,8 @@ public sealed class PlaywrightWebPageFetcher : IHtmlRetriver, IAsyncDisposable
 
             var html = await page.ContentAsync();
             return new ResponseHtmlContent(
-                URL: response.Url, 
-                HTML: html, 
+                Url: response.Url, 
+                Html: html, 
                 FetchedAt: DateTimeOffset.UtcNow, 
                 ContentType:"text/html", StatusCode: 
                 HttpStatusCode.OK,

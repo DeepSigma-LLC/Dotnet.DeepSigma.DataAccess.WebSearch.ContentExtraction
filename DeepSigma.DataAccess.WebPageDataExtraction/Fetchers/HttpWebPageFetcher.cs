@@ -8,7 +8,7 @@ namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 /// Fetches web pages using <see cref="HttpClient"/> with automatic decompression,
 /// redirect following, content-type validation, size limiting, and exponential-backoff retries.
 /// </summary>
-public sealed class HttpWebPageFetcher : IHtmlRetriver
+public sealed class HttpWebPageFetcher : IHtmlRetriever
 {
     private readonly HttpClient _httpClient;
     private readonly WebPageFetcherOptions _options;
@@ -53,7 +53,7 @@ public sealed class HttpWebPageFetcher : IHtmlRetriver
     /// <param name="cancellationToken">An optional cancellation token that can be used to cancel the operation.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseHtmlContent object with
     /// the retrieved HTML content.</returns>
-	public async Task<ResponseHtmlContent> FetchContentAsync(string URL, CancellationToken? cancellationToken = null)
+	public async Task<ResponseHtmlContent> FetchContentAsync(string URL, CancellationToken cancellationToken = default)
 	{
 		ResponseUrlRetrival response = new(
             Url: URL,
@@ -66,16 +66,15 @@ public sealed class HttpWebPageFetcher : IHtmlRetriver
 	}
 
 	/// <inheritdoc/>
-	public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival responseUrl, CancellationToken? cancellationToken = default)
+	public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival responseUrl, CancellationToken cancellationToken = default)
     {
-        CancellationToken ct = cancellationToken ?? CancellationToken.None;
 		int attempt = 0;
         while (true)
         {
             attempt++;
             try
             {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 cts.CancelAfter(_options.Timeout);
 
                 using var response = await _httpClient.GetAsync(
@@ -102,16 +101,16 @@ public sealed class HttpWebPageFetcher : IHtmlRetriver
 
                 var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? responseUrl.Url;
                 return new ResponseHtmlContent(
-                    URL: finalUrl, 
-                    HTML: html,
+                    Url: finalUrl, 
+                    Html: html,
                     FetchedAt: DateTimeOffset.UtcNow,
                     StatusCode: response.StatusCode,
                     ContentType: contentType,
                     SourceUrlRetrival: responseUrl);
             }
-            catch (Exception ex) when (attempt < _options.MaxRetries && IsRetryable(ex, ct))
+            catch (Exception ex) when (attempt < _options.MaxRetries && IsRetryable(ex, cancellationToken))
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), ct);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), cancellationToken);
             }
         }
     }

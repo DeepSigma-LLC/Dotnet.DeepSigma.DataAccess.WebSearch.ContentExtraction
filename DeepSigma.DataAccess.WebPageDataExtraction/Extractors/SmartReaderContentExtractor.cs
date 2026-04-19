@@ -19,25 +19,25 @@ public sealed class SmartReaderContentExtractor : IContentExtractor
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation. Optional.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseExtractedContent object
     /// with the extracted content.</returns>
-	public async Task<ResponseExtractedContent> ExtractedContentAsync(string html, string? url = null, CancellationToken? cancellationToken = null)
+	public async Task<ResponseExtractedContent> ExtractContentAsync(string html, string? url = null, CancellationToken cancellationToken = default)
 	{
         ResponseHtmlContent pageResponseContent = new(
-            URL: url ?? string.Empty,
-            HTML: html,
+            Url: url ?? string.Empty,
+            Html: html,
             FetchedAt: DateTimeOffset.UtcNow,
             ContentType: "text/html",
             StatusCode: System.Net.HttpStatusCode.OK
         );
-        return await ExtractedContentAsync(pageResponseContent, cancellationToken);
+        return await ExtractContentAsync(pageResponseContent, cancellationToken);
 	}
 
 	/// <inheritdoc/>
-	public async Task<ResponseExtractedContent> ExtractedContentAsync(ResponseHtmlContent htmlContent, CancellationToken? cancellationToken = default)
+	public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent htmlContent, CancellationToken cancellationToken = default)
     {
         // NOTE: Reader.ParseArticleAsync (static) does not use the provided HTML string in
         // SmartReader 0.11.0 — use the instance constructor instead.
-        using var reader = new Reader(htmlContent.URL, htmlContent.HTML);
-        var article = await reader.GetArticleAsync(cancellationToken ?? CancellationToken.None);
+        using var reader = new Reader(htmlContent.Url, htmlContent.Html);
+        var article = await reader.GetArticleAsync(cancellationToken);
 
         var mainText = article.IsReadable
             ? article.TextContent?.Trim() ?? string.Empty

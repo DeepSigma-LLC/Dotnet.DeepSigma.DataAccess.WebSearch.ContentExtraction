@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
         configureOptions?.Invoke(options);
         services.AddSingleton(options);
 
-		services.AddHttpClient<IHtmlRetriver, HttpWebPageFetcher>((httpClient, sp) =>
+		services.AddHttpClient<IHtmlRetriever, HttpWebPageFetcher>((httpClient, sp) =>
 		    new HttpWebPageFetcher(httpClient, sp.GetRequiredService<WebPageFetcherOptions>()))
 	    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 	    {
@@ -49,7 +49,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         string? userAgent = null)
     {
-        services.AddSingleton<IHtmlRetriver>(new PlaywrightWebPageFetcher(userAgent));
+        services.AddSingleton<IHtmlRetriever>(new PlaywrightWebPageFetcher(userAgent));
         return services;
     }
 }

@@ -10,8 +10,8 @@ public sealed class SmartReaderContentExtractorTests
     private const string PageUrl = "https://example.com/article";
 
     private static ResponseHtmlContent Page(string html) =>
-        new(URL:PageUrl, 
-            HTML: html, 
+        new(Url:PageUrl, 
+            Html: html, 
             FetchedAt: DateTimeOffset.UtcNow,
 			ContentType: "text/html", 
             StatusCode: HttpStatusCode.OK);
@@ -115,7 +115,7 @@ public sealed class SmartReaderContentExtractorTests
     [Fact]
     public async Task ExtractAsync_ExtractsTitleFromReadableArticle()
     {
-        var result = await _extractor.ExtractedContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
+        var result = await _extractor.ExtractContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
 
         Assert.NotNull(result.Title);
         Assert.Contains("Software Engineering", result.Title);
@@ -124,7 +124,7 @@ public sealed class SmartReaderContentExtractorTests
     [Fact]
     public async Task ExtractAsync_ExtractsMainTextFromReadableArticle()
     {
-        var result = await _extractor.ExtractedContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
+        var result = await _extractor.ExtractContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
 
         Assert.False(string.IsNullOrWhiteSpace(result.MainText));
         Assert.Contains("software engineering", result.MainText, StringComparison.OrdinalIgnoreCase);
@@ -133,7 +133,7 @@ public sealed class SmartReaderContentExtractorTests
     [Fact]
     public async Task ExtractAsync_DetectsLanguageFromHtmlAttribute()
     {
-        var result = await _extractor.ExtractedContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
+        var result = await _extractor.ExtractContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
 
         Assert.Equal("en", result.Language);
     }
@@ -143,7 +143,7 @@ public sealed class SmartReaderContentExtractorTests
     {
         const string junkHtml = "<html><body><nav>Menu item 1</nav><nav>Menu item 2</nav></body></html>";
 
-        var result = await _extractor.ExtractedContentAsync(Page(junkHtml), CancellationToken.None);
+        var result = await _extractor.ExtractContentAsync(Page(junkHtml), CancellationToken.None);
 
         Assert.Equal(string.Empty, result.MainText);
     }
@@ -151,15 +151,15 @@ public sealed class SmartReaderContentExtractorTests
     [Fact]
     public async Task ExtractAsync_PreservesUrl()
     {
-        var result = await _extractor.ExtractedContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
+        var result = await _extractor.ExtractContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
 
-        Assert.Equal(PageUrl, result.SourceHtmlContent?.URL);
+        Assert.Equal(PageUrl, result.SourceHtmlContent?.Url);
     }
 
     [Fact]
     public async Task ExtractAsync_PublishedAtIsNull_WhenNoDateInPage()
     {
-        var result = await _extractor.ExtractedContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
+        var result = await _extractor.ExtractContentAsync(Page(ReadableArticleHtml), CancellationToken.None);
 
         Assert.Null(result.PublishedAt);
     }
@@ -167,7 +167,7 @@ public sealed class SmartReaderContentExtractorTests
     [Fact]
     public async Task ExtractAsync_ExtractsPublishedAt_WhenOpenGraphDatePresent()
     {
-        var result = await _extractor.ExtractedContentAsync(Page(DatedArticleHtml), CancellationToken.None);
+        var result = await _extractor.ExtractContentAsync(Page(DatedArticleHtml), CancellationToken.None);
 
         Assert.NotNull(result.PublishedAt);
         // Compare UTC date to be timezone-agnostic (SmartReader returns DateTime.Local
