@@ -1,6 +1,6 @@
 using AngleSharp;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.Abstraction;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 
@@ -17,20 +17,47 @@ public sealed class AngleSharpContentExtractor : IContentExtractor
         "[role='navigation']", "[role='banner']", "[role='complementary']"
     ];
 
-    /// <inheritdoc/>
-    public async Task<ExtractedContent> ExtractAsync(WebPageFetchResult page, CancellationToken ct = default)
+	/// <summary>
+	/// Convenience method to extract content directly from an HTML string and URL without needing to construct a ResponseHtmlContent object.
+	/// </summary>
+	/// <param name="html">The HTML content of the page.</param>
+	/// <param name="url">The URL of the page.</param>
+	/// <param name="cancellationToken">An optional cancellation token.</param>
+	/// <returns>A task that represents the asynchronous operation. The task result contains the extracted content.</returns>
+	public async Task<ResponseExtractedContent> ExtractedContentAsync(string html, string? url = null, CancellationToken? cancellationToken = null)
+	{
+        ResponseHtmlContent pageResponseContent = new(
+            URL: url ?? string.Empty,
+            HTML: html,
+            FetchedAt: DateTimeOffset.UtcNow,
+            ContentType: "text/html",
+            StatusCode: System.Net.HttpStatusCode.OK
+        );
+		return await ExtractedContentAsync(pageResponseContent, cancellationToken ?? CancellationToken.None);
+	}
+
+
+	/// <inheritdoc/>
+	public async Task<ResponseExtractedContent> ExtractedContentAsync(ResponseHtmlContent pageResponseContent, CancellationToken? cancellationToken = default)
     {
         var config = Configuration.Default;
         var context = BrowsingContext.New(config);
-        var document = await context.OpenAsync(req => req.Content(page.Html), ct);
-
+        var document = await context.OpenAsync(req => req.Content(pageResponseContent.HTML), cancellationToken ?? CancellationToken.None);
         var title = document.QuerySelector("title")?.TextContent?.Trim()
                     ?? document.QuerySelector("h1")?.TextContent?.Trim();
 
         var excerpt = document.QuerySelector("meta[name='description']")
                               ?.GetAttribute("content")?.Trim();
 
-        var lang = document.DocumentElement.GetAttribute("lang");
+		var publishedAtMeta = document.QuerySelector("meta[property='article:published_time']")
+					  ?? document.QuerySelector("meta[name='pubdate']")
+					  ?? document.QuerySelector("meta[name='publication_date']");
+
+        DateTimeOffset? publishedAt = publishedAtMeta != null && DateTime.TryParse(publishedAtMeta.GetAttribute("content"), out var dt)
+						? new DateTimeOffset(dt)
+						: null;
+
+		var lang = document.DocumentElement.GetAttribute("lang");
 
         foreach (var selector in NoisySelectors)
         {
@@ -39,18 +66,21 @@ public sealed class AngleSharpContentExtractor : IContentExtractor
         }
 
         var paragraphs = document.QuerySelectorAll("article p, main p, p");
-        var mainText = string.Join("\n\n",
+
+		var mainText = string.Join("\n\n",
             paragraphs
                 .Select(p => p.TextContent.Trim())
                 .Where(t => !string.IsNullOrWhiteSpace(t)));
 
-        return new ExtractedContent(
-            page.Url,
-            string.IsNullOrWhiteSpace(title) ? null : title,
-            null,
-            string.IsNullOrWhiteSpace(excerpt) ? null : excerpt,
-            mainText,
-            string.IsNullOrWhiteSpace(lang) ? null : lang,
-            null);
+        return new ResponseExtractedContent(
+            MainText: mainText,
+            Title: string.IsNullOrWhiteSpace(title) ? null : title,
+            Snippet: string.IsNullOrWhiteSpace(excerpt) ? null : excerpt,
+            Language: string.IsNullOrWhiteSpace(lang) ? null : lang,
+            PublishedAt: publishedAt,
+			SourceHtmlContent: pageResponseContent
+			);
     }
+
+
 }

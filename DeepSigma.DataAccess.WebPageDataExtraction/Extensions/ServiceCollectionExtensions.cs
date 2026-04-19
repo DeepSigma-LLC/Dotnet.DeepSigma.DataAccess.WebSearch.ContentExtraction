@@ -2,7 +2,7 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
+using DeepSigma.DataAccess.WebSearch.Abstraction;
 
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Extensions;
 
@@ -10,7 +10,7 @@ namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="IWebPageFetcher"/> (HTTP-based with gzip/brotli/deflate decompression)
+    /// Registers <see cref="IHtmlRetriver"/> (HTTP-based with gzip/brotli/deflate decompression)
     /// and <see cref="IContentExtractor"/> (SmartReader) into the DI container.
     /// </summary>
     /// <param name="services">The service collection to add to.</param>
@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
         configureOptions?.Invoke(options);
         services.AddSingleton(options);
 
-        services.AddHttpClient<IWebPageFetcher, HttpWebPageFetcher>()
+        services.AddHttpClient<IHtmlRetriver, HttpWebPageFetcher>()
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 AutomaticDecompression =
@@ -38,7 +38,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Replaces the <see cref="IWebPageFetcher"/> registration with <see cref="PlaywrightWebPageFetcher"/>
+    /// Replaces the <see cref="IHtmlRetriver"/> registration with <see cref="PlaywrightWebPageFetcher"/>
     /// for pages that require JavaScript rendering.
     /// <para>
     /// <b>Prerequisites:</b> run <c>playwright install chromium</c> on the host before use.
@@ -48,7 +48,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         string? userAgent = null)
     {
-        services.AddSingleton<IWebPageFetcher>(new PlaywrightWebPageFetcher(userAgent));
+        services.AddSingleton<IHtmlRetriver>(new PlaywrightWebPageFetcher(userAgent));
         return services;
     }
 }

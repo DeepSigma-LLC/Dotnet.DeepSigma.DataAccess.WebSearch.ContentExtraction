@@ -1,6 +1,6 @@
 using System.Net;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
 using Xunit;
 
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Test.Extractors;
@@ -9,8 +9,12 @@ public sealed class AngleSharpContentExtractorTests
 {
     private const string PageUrl = "https://example.com/page";
 
-    private static WebPageFetchResult Page(string html) =>
-        new(PageUrl, html, "text/html", HttpStatusCode.OK);
+    private static ResponseHtmlContent Page(string html) =>
+        new(URL: PageUrl, 
+            HTML: html, 
+            ContentType: "text/html", 
+            StatusCode: HttpStatusCode.OK, 
+            FetchedAt: DateTimeOffset.UtcNow);
 
     private readonly AngleSharpContentExtractor _extractor = new();
 
@@ -19,7 +23,7 @@ public sealed class AngleSharpContentExtractorTests
     {
         var html = "<html><head><title>My Article Title</title></head><body><p>Content</p></body></html>";
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Equal("My Article Title", result.Title);
     }
@@ -29,7 +33,7 @@ public sealed class AngleSharpContentExtractorTests
     {
         var html = "<html><body><h1>Fallback Heading</h1><p>Content</p></body></html>";
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Equal("Fallback Heading", result.Title);
     }
@@ -46,9 +50,9 @@ public sealed class AngleSharpContentExtractorTests
             </html>
             """;
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
-        Assert.Equal("A short summary.", result.Excerpt);
+        Assert.Equal("A short summary.", result.Snippet);
     }
 
     [Fact]
@@ -56,7 +60,7 @@ public sealed class AngleSharpContentExtractorTests
     {
         var html = "<html lang=\"en\"><body><p>Hello</p></body></html>";
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Equal("en", result.Language);
     }
@@ -71,7 +75,7 @@ public sealed class AngleSharpContentExtractorTests
             </body></html>
             """;
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Contains("First paragraph.", result.MainText);
         Assert.Contains("Second paragraph.", result.MainText);
@@ -88,7 +92,7 @@ public sealed class AngleSharpContentExtractorTests
             </body></html>
             """;
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Contains("Real article content.", result.MainText);
         Assert.DoesNotContain("Site navigation noise", result.MainText);
@@ -100,7 +104,7 @@ public sealed class AngleSharpContentExtractorTests
     {
         var html = "<html><body><div>No paragraphs here.</div></body></html>";
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Equal(string.Empty, result.MainText);
     }
@@ -110,7 +114,7 @@ public sealed class AngleSharpContentExtractorTests
     {
         var html = "<html><body><p>Content</p></body></html>";
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Null(result.Byline);
     }
@@ -120,7 +124,7 @@ public sealed class AngleSharpContentExtractorTests
     {
         var html = "<html><body><p>Content</p></body></html>";
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
         Assert.Null(result.PublishedAt);
     }
@@ -130,8 +134,8 @@ public sealed class AngleSharpContentExtractorTests
     {
         var html = "<html><body><p>Content</p></body></html>";
 
-        var result = await _extractor.ExtractAsync(Page(html));
+        var result = await _extractor.ExtractedContentAsync(Page(html), CancellationToken.None);
 
-        Assert.Equal(PageUrl, result.Url);
+        Assert.Equal(PageUrl, result.SourceHtmlContent?.URL);
     }
 }

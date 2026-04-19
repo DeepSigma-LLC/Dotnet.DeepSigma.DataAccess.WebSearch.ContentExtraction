@@ -1,7 +1,8 @@
 using System.Net;
 using Microsoft.Playwright;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.Abstraction;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 
@@ -13,7 +14,7 @@ namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 /// See https://playwright.dev/dotnet/docs/intro for setup instructions.
 /// </para>
 /// </summary>
-public sealed class PlaywrightWebPageFetcher : IWebPageFetcher, IAsyncDisposable
+public sealed class PlaywrightWebPageFetcher : IHtmlRetriver, IAsyncDisposable
 {
     private readonly string _userAgent;
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -25,26 +26,52 @@ public sealed class PlaywrightWebPageFetcher : IWebPageFetcher, IAsyncDisposable
     /// </param>
     public PlaywrightWebPageFetcher(string? userAgent = null)
     {
-        _userAgent = userAgent ?? "DeepSigmaBot/1.0 (+https://github.com/DeepSigma-LLC)";
+        _userAgent = userAgent ?? "DefaultUserAgent/1.0";
     }
 
-    /// <inheritdoc/>
-    public async Task<WebPageFetchResult> FetchAsync(string url, CancellationToken ct = default)
+    /// <summary>
+    /// Asynchronously retrieves the HTML content from the specified URL.
+    /// </summary>
+    /// <param name="url">The URL of the web page to fetch. Cannot be null or empty.</param>
+    /// <param name="cancellationToken">An optional token to monitor for cancellation requests.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseHtmlContent object with
+    /// the retrieved HTML content.</returns>
+	public Task<ResponseHtmlContent> FetchContentAsync(string url, CancellationToken? cancellationToken = null)
+	{
+		ResponseUrlRetrival response = new(
+            Url: url,
+            Title: null,
+            Snippet: null,
+            SearchEngine: "Manual",
+			RetrievedAt: DateTimeOffset.UtcNow
+        );
+        return FetchContentAsync(response, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival response, CancellationToken? ct = default)
     {
-        var browser = await EnsureBrowserAsync(ct);
+        var browser = await EnsureBrowserAsync(ct ?? CancellationToken.None);
         var page = await browser.NewPageAsync();
         try
         {
             await page.SetExtraHTTPHeadersAsync(
                 new Dictionary<string, string> { ["User-Agent"] = _userAgent });
 
-            await page.GotoAsync(url, new PageGotoOptions
+            await page.GotoAsync(response.Url, new PageGotoOptions
             {
                 WaitUntil = WaitUntilState.NetworkIdle
             });
 
             var html = await page.ContentAsync();
-            return new WebPageFetchResult(url, html, "text/html", HttpStatusCode.OK);
+            return new ResponseHtmlContent(
+                URL: response.Url, 
+                HTML: html, 
+                FetchedAt: DateTimeOffset.UtcNow, 
+                ContentType:"text/html", StatusCode: 
+                HttpStatusCode.OK,
+                SourceUrlRetrival: response
+                );
         }
         finally
         {
@@ -80,4 +107,6 @@ public sealed class PlaywrightWebPageFetcher : IWebPageFetcher, IAsyncDisposable
         _playwright?.Dispose();
         _initLock.Dispose();
     }
+
+
 }

@@ -1,6 +1,6 @@
 using System.Net;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Interfaces;
-using DeepSigma.DataAccess.WebSearch.ContentExtraction.Models;
+using DeepSigma.DataAccess.WebSearch.Abstraction;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 
@@ -8,7 +8,7 @@ namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 /// Fetches web pages using <see cref="HttpClient"/> with automatic decompression,
 /// redirect following, content-type validation, size limiting, and exponential-backoff retries.
 /// </summary>
-public sealed class HttpWebPageFetcher : IWebPageFetcher
+public sealed class HttpWebPageFetcher : IHtmlRetriver
 {
     private readonly HttpClient _httpClient;
     private readonly WebPageFetcherOptions _options;
@@ -31,11 +31,11 @@ public sealed class HttpWebPageFetcher : IWebPageFetcher
         _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(_options.UserAgent);
     }
 
-    /// <summary>
-    /// Creates a standalone <see cref="HttpWebPageFetcher"/> with gzip/brotli/deflate
-    /// decompression and auto-redirect enabled — no DI required.
-    /// </summary>
-    public static HttpWebPageFetcher Create(WebPageFetcherOptions? options = null)
+	/// <summary>
+	/// Creates a standalone <see cref="HttpWebPageFetcher"/> with gzip/brotli/deflate
+	/// decompression and auto-redirect enabled — no DI required.
+	/// </summary>
+	public static HttpWebPageFetcher Create(WebPageFetcherOptions? options = null)
     {
         var handler = new HttpClientHandler
         {
@@ -46,10 +46,30 @@ public sealed class HttpWebPageFetcher : IWebPageFetcher
         return new HttpWebPageFetcher(new HttpClient(handler), options ?? new WebPageFetcherOptions());
     }
 
-    /// <inheritdoc/>
-    public async Task<WebPageFetchResult> FetchAsync(string url, CancellationToken ct = default)
+    /// <summary>
+    /// Asynchronously retrieves the HTML content from the specified URL.
+    /// </summary>
+    /// <param name="URL">The URL of the web page to fetch content from. Must be a valid, absolute URL.</param>
+    /// <param name="cancellationToken">An optional cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseHtmlContent object with
+    /// the retrieved HTML content.</returns>
+	public async Task<ResponseHtmlContent> FetchContentAsync(string URL, CancellationToken? cancellationToken = null)
+	{
+		ResponseUrlRetrival response = new(
+            Url: URL,
+            Title: null,
+            Snippet: null,
+            SearchEngine: "Manual",
+			RetrievedAt: DateTimeOffset.UtcNow
+        );
+        return await FetchContentAsync(response, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival responseUrl, CancellationToken? cancellationToken = default)
     {
-        int attempt = 0;
+        CancellationToken ct = cancellationToken ?? CancellationToken.None;
+		int attempt = 0;
         while (true)
         {
             attempt++;
@@ -59,7 +79,7 @@ public sealed class HttpWebPageFetcher : IWebPageFetcher
                 cts.CancelAfter(_options.Timeout);
 
                 using var response = await _httpClient.GetAsync(
-                    url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                    responseUrl.Url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
                 response.EnsureSuccessStatusCode();
 
                 var contentType = response.Content.Headers.ContentType?.MediaType;
@@ -80,8 +100,14 @@ public sealed class HttpWebPageFetcher : IWebPageFetcher
                     throw new InvalidOperationException(
                         $"Response size exceeds limit: {html.Length} chars");
 
-                var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? url;
-                return new WebPageFetchResult(finalUrl, html, contentType, response.StatusCode);
+                var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? responseUrl.Url;
+                return new ResponseHtmlContent(
+                    URL: finalUrl, 
+                    HTML: html,
+                    FetchedAt: DateTimeOffset.UtcNow,
+                    StatusCode: response.StatusCode,
+                    ContentType: contentType,
+                    SourceUrlRetrival: responseUrl);
             }
             catch (Exception ex) when (attempt < _options.MaxRetries && IsRetryable(ex, ct))
             {
@@ -93,4 +119,5 @@ public sealed class HttpWebPageFetcher : IWebPageFetcher
     private static bool IsRetryable(Exception ex, CancellationToken ct) =>
         !ct.IsCancellationRequested
         && ex is HttpRequestException or TaskCanceledException;
+
 }

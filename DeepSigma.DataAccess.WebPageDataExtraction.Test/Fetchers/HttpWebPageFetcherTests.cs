@@ -46,10 +46,10 @@ public sealed class HttpWebPageFetcherTests
     {
         var fetcher = BuildFetcher(_ => HtmlResponse());
 
-        var result = await fetcher.FetchAsync(SampleUrl);
+        var result = await fetcher.FetchContentAsync(SampleUrl, CancellationToken.None);
 
-        Assert.Equal(SampleUrl, result.Url);
-        Assert.Equal(SampleHtml, result.Html);
+        Assert.Equal(SampleUrl, result.SourceUrlRetrival?.Url);
+        Assert.Equal(SampleHtml, result.HTML);
         Assert.Equal("text/html", result.ContentType);
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
     }
@@ -60,9 +60,9 @@ public sealed class HttpWebPageFetcherTests
         const string redirectedUrl = "https://example.com/canonical-article";
         var fetcher = BuildFetcher(_ => HtmlResponse(finalUrl: redirectedUrl));
 
-        var result = await fetcher.FetchAsync(SampleUrl);
+        var result = await fetcher.FetchContentAsync(SampleUrl);
 
-        Assert.Equal(redirectedUrl, result.Url);
+        Assert.Equal(redirectedUrl, result.SourceUrlRetrival?.Url);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class HttpWebPageFetcherTests
         });
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => fetcher.FetchAsync(SampleUrl));
+            () => fetcher.FetchContentAsync(SampleUrl));
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class HttpWebPageFetcherTests
             return response;
         }, options);
 
-        var result = await fetcher.FetchAsync(SampleUrl);
+        var result = await fetcher.FetchContentAsync(SampleUrl);
 
         Assert.Equal("text/plain", result.ContentType);
     }
@@ -113,10 +113,10 @@ public sealed class HttpWebPageFetcherTests
             return HtmlResponse();
         }, new WebPageFetcherOptions { MaxRetries = 3 });
 
-        var result = await fetcher.FetchAsync(SampleUrl);
+        var result = await fetcher.FetchContentAsync(SampleUrl);
 
         Assert.Equal(3, callCount);
-        Assert.Equal(SampleHtml, result.Html);
+        Assert.Equal(SampleHtml, result.HTML);
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class HttpWebPageFetcherTests
             new WebPageFetcherOptions { MaxRetries = 2 });
 
         await Assert.ThrowsAsync<HttpRequestException>(
-            () => fetcher.FetchAsync(SampleUrl));
+            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class HttpWebPageFetcherTests
         var fetcher = BuildFetcher(_ => HtmlResponse(html: new string('x', 100)), options);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => fetcher.FetchAsync(SampleUrl));
+            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
     }
 
     // ---------------------------------------------------------------------------
