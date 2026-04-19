@@ -57,3 +57,20 @@ public sealed class ResponseTooLargeException : WebPageFetchException
         Limit = limit;
     }
 }
+
+/// <summary>
+/// Thrown when a fetch operation times out after all retry attempts are exhausted.
+/// This distinguishes HTTP-timeout scenarios from user-initiated cancellations.
+/// </summary>
+public sealed class WebPageFetchTimeoutException : WebPageFetchException
+{
+    /// <summary>The number of attempts made before giving up.</summary>
+    public int Attempts { get; }
+
+    /// <inheritdoc cref="WebPageFetchException(string, string, Exception)"/>
+    public WebPageFetchTimeoutException(int attempts, string? url, Exception innerException)
+        : base($"The request to '{url}' timed out after {attempts} attempt(s).", url, innerException)
+    {
+        Attempts = attempts;
+    }
+}

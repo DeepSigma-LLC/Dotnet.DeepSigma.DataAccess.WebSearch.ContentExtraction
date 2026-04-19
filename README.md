@@ -21,6 +21,7 @@ A .NET 10 library for fetching and extracting clean, structured content from web
   - [JavaScript-rendered pages (Playwright)](#javascript-rendered-pages-playwright)
   - [Fallback extractor (AngleSharp)](#fallback-extractor-anglesharp)
 - [Configuration](#configuration)
+- [Error handling](#error-handling)
 - [Return types](#return-types)
   - [ResponseHtmlContent](#responsehtmlcontent)
   - [ResponseExtractedContent](#responseextractedcontent)
@@ -42,7 +43,7 @@ A .NET 10 library for fetching and extracting clean, structured content from web
   - Per-request timeout (default 30 s)
   - Configurable response-size guard (default 10 MB)
   - Content-type validation (rejects non-HTML by default)
-  - Exponential-backoff retry on transient failures (default 3 attempts)
+  - Exponential-backoff retry on transient failures (default 3 attempts); throws `WebPageFetchTimeoutException` when all attempts are exhausted so callers can distinguish timeouts from user-initiated cancellations
 - **`PlaywrightWebPageFetcher`** — renders pages in headless Chromium and captures the post-JavaScript HTML; lazy browser initialisation with thread-safe setup
 - **`SmartReaderContentExtractor`** — extracts article title, byline, excerpt, publication date, language, and clean plain text using [SmartReader](https://github.com/strumenta/SmartReader) (a .NET port of Mozilla Readability); automatically strips navigation, ads, footers, and sidebars
 - **`AngleSharpContentExtractor`** — CSS-selector-based fallback extractor powered by [AngleSharp](https://anglesharp.github.io/); useful for non-article pages or when Readability returns no readable content
@@ -235,8 +236,52 @@ var content = string.IsNullOrWhiteSpace(smart.MainText)
 | `UserAgent` | `string` | `"DefaultUserAgent/1.0"` | Value of the `User-Agent` request header |
 | `Timeout` | `TimeSpan` | `00:00:30` | Per-request timeout |
 | `MaxAttempts` | `int` | `3` | Total number of attempts (first try + retries); uses exponential backoff with jitter |
-| `MaxResponseSizeBytes` | `long` | `10485760` (10 MB) | Requests exceeding this size throw `InvalidOperationException` |
-| `AllowNonHtmlContent` | `bool` | `false` | When `false`, non-`text/html` responses throw `InvalidOperationException` |
+| `MaxResponseSizeBytes` | `long` | `10485760` (10 MB) | Requests exceeding this size throw `ResponseTooLargeException` |
+| `AllowNonHtmlContent` | `bool` | `false` | When `false`, non-`text/html` responses throw `ContentTypeNotAllowedException` |
+
+---
+
+## Error handling
+
+All fetch-related exceptions derive from `WebPageFetchException` (namespace
+`DeepSigma.DataAccess.WebSearch.ContentExtraction.Exceptions`), making it easy to catch
+fetch failures as a group or handle specific cases individually.
+
+| Exception | When thrown |
+|---|---|
+| `WebPageFetchTimeoutException` | All retry attempts timed out (i.e. the per-request `Timeout` expired on every try). Wraps the original `TaskCanceledException`. Does **not** inherit from `OperationCanceledException`, so it is never confused with a user-initiated cancellation. |
+| `ResponseTooLargeException` | The response body exceeds `MaxResponseSizeBytes`. |
+| `ContentTypeNotAllowedException` | The server returned a non-`text/html` content type and `AllowNonHtmlContent` is `false`. |
+
+> A true user cancellation (via `CancellationToken`) still propagates as `OperationCanceledException`
+> and is never caught or wrapped by the fetcher.
+
+**Example — distinguishing timeouts from cancellations:**
+
+```csharp
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Exceptions;
+
+try
+{
+    var page = await fetcher.FetchContentAsync(url, cancellationToken);
+    var content = await extractor.ExtractContentAsync(page, cancellationToken);
+}
+catch (WebPageFetchTimeoutException ex)
+{
+    // All retry attempts timed out — log and skip or enqueue for later
+    logger.LogWarning(ex, "Timed out fetching {Url} after {Attempts} attempt(s)", ex.Url, ex.Attempts);
+}
+catch (OperationCanceledException)
+{
+    // User or host cancelled — rethrow so the caller knows
+    throw;
+}
+catch (WebPageFetchException ex)
+{
+    // ContentTypeNotAllowedException, ResponseTooLargeException, etc.
+    logger.LogWarning(ex, "Fetch failed for {Url}: {Message}", ex.Url, ex.Message);
+}
+```
 
 ---
 
@@ -338,15 +383,17 @@ with custom fetchers and extractors without changing any downstream code.
 
 ```
 DeepSigma.DataAccess.WebPageDataExtraction/
+├── Exceptions/
+│   └── WebPageFetchException.cs             # Base exception + timeout, size, content-type variants
 ├── Extractors/
-│   ├── AngleSharpContentExtractor.cs    # AngleSharp-based fallback extractor
-│   └── SmartReaderContentExtractor.cs   # Mozilla Readability extractor (recommended)
+│   ├── AngleSharpContentExtractor.cs        # AngleSharp-based fallback extractor
+│   └── SmartReaderContentExtractor.cs       # Mozilla Readability extractor (recommended)
 ├── Extensions/
-│   └── ServiceCollectionExtensions.cs   # DI registration helpers
+│   └── ServiceCollectionExtensions.cs       # DI registration helpers
 ├── Fetchers/
-│   ├── HttpWebPageFetcher.cs            # HTTP-based page fetcher
-│   ├── PlaywrightWebPageFetcher.cs      # Headless Chromium fetcher
-│   └── WebPageFetcherOptions.cs         # Fetcher configuration
+│   ├── HttpWebPageFetcher.cs                # HTTP-based page fetcher
+│   ├── PlaywrightWebPageFetcher.cs          # Headless Chromium fetcher
+│   └── WebPageFetcherOptions.cs             # Fetcher configuration
 └── DeepSigma.DataAccess.WebSearch.ContentExtraction.csproj
 
 DeepSigma.DataAccess.WebPageDataExtraction.Test/

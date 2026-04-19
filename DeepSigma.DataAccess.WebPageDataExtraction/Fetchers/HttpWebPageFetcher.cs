@@ -3,6 +3,7 @@ using DeepSigma.DataAccess.WebSearch.Abstraction;
 using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Exceptions;
 
+
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 
 /// <summary>
@@ -107,12 +108,16 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
                     ContentType: contentType,
                     SourceUrlRetrival: responseUrl);
             }
-            catch (HttpRequestException) when (attempt < _options.MaxAttempts && !cancellationToken.IsCancellationRequested)
+            catch (HttpRequestException ex) when (!cancellationToken.IsCancellationRequested)
             {
+                if (attempt >= _options.MaxAttempts)
+                    throw new WebPageFetchTimeoutException(attempt, responseUrl.Url, ex);
                 await DelayWithJitterAsync(attempt, cancellationToken).ConfigureAwait(false);
             }
-            catch (TaskCanceledException) when (attempt < _options.MaxAttempts && !cancellationToken.IsCancellationRequested)
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
+                if (attempt >= _options.MaxAttempts)
+                    throw new WebPageFetchTimeoutException(attempt, responseUrl.Url, ex);
                 await DelayWithJitterAsync(attempt, cancellationToken).ConfigureAwait(false);
             }
         }
