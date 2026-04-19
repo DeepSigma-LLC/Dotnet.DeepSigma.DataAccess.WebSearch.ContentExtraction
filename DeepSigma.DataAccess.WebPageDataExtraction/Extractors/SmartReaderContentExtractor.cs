@@ -11,31 +11,12 @@ namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 /// </summary>
 public sealed class SmartReaderContentExtractor : IContentExtractor
 {
-    /// <summary>
-    /// Extracts structured content from the specified HTML string asynchronously.
-    /// </summary>
-    /// <param name="html">The HTML content to extract information from. Cannot be null or empty.</param>
-    /// <param name="url">The original URL of the HTML content. Used for context in extraction. Optional.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation. Optional.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseExtractedContent object
-    /// with the extracted content.</returns>
-    public async Task<ResponseExtractedContent> ExtractContentAsync(string html, string? url = null, CancellationToken cancellationToken = default)
-    {
-        ResponseHtmlContent pageResponseContent = new(
-            Url: url ?? string.Empty,
-            Html: html,
-            FetchedAt: DateTimeOffset.UtcNow,
-            ContentType: "text/html",
-            StatusCode: System.Net.HttpStatusCode.OK);
-        return await ExtractContentAsync(pageResponseContent, cancellationToken).ConfigureAwait(false);
-    }
-
     /// <inheritdoc/>
-    public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent htmlContent, CancellationToken cancellationToken = default)
+    public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent htmlContent, ResponseUrlRetrival urlContent, CancellationToken cancellationToken = default)
     {
         // NOTE: Reader.ParseArticleAsync (static) does not use the provided HTML string in
         // SmartReader 0.11.0 — use the instance constructor instead.
-        using var reader = new Reader(htmlContent.Url, htmlContent.Html);
+        using var reader = new Reader(urlContent.Url, htmlContent.Html);
         var article = await reader.GetArticleAsync(cancellationToken).ConfigureAwait(false);
 
         var mainText = article.IsReadable
@@ -48,13 +29,14 @@ public sealed class SmartReaderContentExtractor : IContentExtractor
             : null;
 
         return new ResponseExtractedContent(
+            SourceUrlRetrival: urlContent,
+            SourceHtmlContent: htmlContent,
             MainText: mainText,
             Title: NullIfWhiteSpace(article.Title),
             Byline: NullIfWhiteSpace(article.Byline),
             Language: NullIfWhiteSpace(article.Language),
             Snippet: NullIfWhiteSpace(article.Excerpt),
-            PublishedAt: publishedAt,
-            SourceHtmlContent: htmlContent);
+            PublishedAt: publishedAt);
     }
 
     private static string? NullIfWhiteSpace(string? value) =>

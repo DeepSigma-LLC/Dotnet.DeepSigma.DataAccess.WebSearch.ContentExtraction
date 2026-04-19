@@ -49,24 +49,6 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
         return new HttpWebPageFetcher(new HttpClient(handler), options ?? new WebPageFetcherOptions());
     }
 
-    /// <summary>
-    /// Asynchronously retrieves the HTML content from the specified URL.
-    /// </summary>
-    /// <param name="url">The URL of the web page to fetch content from. Must be a valid, absolute URL.</param>
-    /// <param name="cancellationToken">An optional cancellation token that can be used to cancel the operation.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseHtmlContent object with
-    /// the retrieved HTML content.</returns>
-    public async Task<ResponseHtmlContent> FetchContentAsync(string url, CancellationToken cancellationToken = default)
-    {
-        ResponseUrlRetrival response = new(
-            Url: url,
-            Title: null,
-            Snippet: null,
-            SearchEngine: "Manual",
-            RetrievedAt: DateTimeOffset.UtcNow);
-        return await FetchContentAsync(response, cancellationToken).ConfigureAwait(false);
-    }
-
     /// <inheritdoc/>
     public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival responseUrl, CancellationToken cancellationToken = default)
     {
@@ -101,12 +83,10 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
 
                 var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? responseUrl.Url;
                 return new ResponseHtmlContent(
-                    Url: finalUrl,
                     Html: html,
                     FetchedAt: DateTimeOffset.UtcNow,
                     StatusCode: response.StatusCode,
-                    ContentType: contentType,
-                    SourceUrlRetrival: responseUrl);
+                    ContentType: contentType);
             }
             catch (HttpRequestException ex) when (!cancellationToken.IsCancellationRequested)
             {
@@ -123,6 +103,14 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
         }
     }
 
+    /// <summary>
+    /// Creates a delay with exponential backoff and a random jitter, suitable for retry scenarios.
+    /// </summary>
+    /// <remarks>The delay duration increases exponentially with each attempt and includes a random jitter to
+    /// reduce contention in concurrent retry scenarios.</remarks>
+    /// <param name="attempt">The current retry attempt number. Must be greater than or equal to 1.</param>
+    /// <param name="ct">A cancellation token that can be used to cancel the delay operation.</param>
+    /// <returns>A task that completes after the calculated delay interval, or earlier if the operation is canceled.</returns>
     private static Task DelayWithJitterAsync(int attempt, CancellationToken ct)
     {
         var baseMs = (int)Math.Pow(2, attempt - 1) * 1000;

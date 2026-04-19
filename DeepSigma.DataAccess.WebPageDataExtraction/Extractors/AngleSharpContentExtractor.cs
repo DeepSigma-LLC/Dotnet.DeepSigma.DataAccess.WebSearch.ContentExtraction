@@ -19,26 +19,8 @@ public sealed class AngleSharpContentExtractor : IContentExtractor
         _options = options ?? new AngleSharpExtractorOptions();
     }
 
-    /// <summary>
-    /// Convenience method to extract content directly from an HTML string and URL without needing to construct a ResponseHtmlContent object.
-    /// </summary>
-    /// <param name="html">The HTML content of the page.</param>
-    /// <param name="url">The URL of the page.</param>
-    /// <param name="cancellationToken">An optional cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains the extracted content.</returns>
-    public async Task<ResponseExtractedContent> ExtractContentAsync(string html, string? url = null, CancellationToken cancellationToken = default)
-    {
-        ResponseHtmlContent pageResponseContent = new(
-            Url: url ?? string.Empty,
-            Html: html,
-            FetchedAt: DateTimeOffset.UtcNow,
-            ContentType: "text/html",
-            StatusCode: System.Net.HttpStatusCode.OK);
-        return await ExtractContentAsync(pageResponseContent, cancellationToken).ConfigureAwait(false);
-    }
-
     /// <inheritdoc/>
-    public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent pageResponseContent, CancellationToken cancellationToken = default)
+    public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent pageResponseContent, ResponseUrlRetrival urlRetrival, CancellationToken cancellationToken = default)
     {
         var config = Configuration.Default;
         var context = BrowsingContext.New(config);
@@ -73,11 +55,12 @@ public sealed class AngleSharpContentExtractor : IContentExtractor
                 .Where(t => !string.IsNullOrWhiteSpace(t)));
 
         return new ResponseExtractedContent(
+            SourceUrlRetrival: urlRetrival,
+            SourceHtmlContent: pageResponseContent,
             MainText: mainText,
             Title: string.IsNullOrWhiteSpace(title) ? null : title,
             Snippet: string.IsNullOrWhiteSpace(excerpt) ? null : excerpt,
             Language: string.IsNullOrWhiteSpace(lang) ? null : lang,
-            PublishedAt: publishedAt,
-            SourceHtmlContent: pageResponseContent);
+            PublishedAt: publishedAt);
     }
 }

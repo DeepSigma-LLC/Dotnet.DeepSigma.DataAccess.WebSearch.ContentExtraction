@@ -28,24 +28,6 @@ public sealed class PlaywrightWebPageFetcher : IHtmlRetriever, IAsyncDisposable
         _options = options ?? new WebPageFetcherOptions();
     }
 
-    /// <summary>
-    /// Asynchronously retrieves the HTML content from the specified URL.
-    /// </summary>
-    /// <param name="url">The URL of the web page to fetch. Cannot be null or empty.</param>
-    /// <param name="cancellationToken">An optional token to monitor for cancellation requests.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseHtmlContent object with
-    /// the retrieved HTML content.</returns>
-    public Task<ResponseHtmlContent> FetchContentAsync(string url, CancellationToken cancellationToken = default)
-    {
-        ResponseUrlRetrival response = new(
-            Url: url,
-            Title: null,
-            Snippet: null,
-            SearchEngine: "Manual",
-            RetrievedAt: DateTimeOffset.UtcNow);
-        return FetchContentAsync(response, cancellationToken);
-    }
-
     /// <inheritdoc/>
     public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival response, CancellationToken cancellationToken = default)
     {
@@ -64,12 +46,10 @@ public sealed class PlaywrightWebPageFetcher : IHtmlRetriever, IAsyncDisposable
 
             var html = await page.ContentAsync().ConfigureAwait(false);
             return new ResponseHtmlContent(
-                Url: response.Url,
                 Html: html,
                 FetchedAt: DateTimeOffset.UtcNow,
                 ContentType: "text/html",
-                StatusCode: HttpStatusCode.OK,
-                SourceUrlRetrival: response);
+                StatusCode: HttpStatusCode.OK);
         }
         finally
         {

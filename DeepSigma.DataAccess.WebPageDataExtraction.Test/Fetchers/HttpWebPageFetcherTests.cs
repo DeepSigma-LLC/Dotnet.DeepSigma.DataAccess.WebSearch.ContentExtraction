@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Exceptions;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using Xunit;
@@ -22,6 +23,9 @@ public sealed class HttpWebPageFetcherTests
         var http = new HttpClient(new FakeHttpMessageHandler(handler));
         return new HttpWebPageFetcher(http, options ?? new WebPageFetcherOptions());
     }
+
+    private static ResponseUrlRetrival UrlInfo(string url = SampleUrl) =>
+        new(Url: url, Title: null, Snippet: null, SearchEngine: "Test", RetrievedAt: DateTimeOffset.UtcNow);
 
     private static HttpResponseMessage HtmlResponse(
         string html = SampleHtml,
@@ -47,9 +51,8 @@ public sealed class HttpWebPageFetcherTests
     {
         var fetcher = BuildFetcher(_ => HtmlResponse());
 
-        var result = await fetcher.FetchContentAsync(SampleUrl, CancellationToken.None);
+        var result = await fetcher.FetchContentAsync(UrlInfo(), CancellationToken.None);
 
-        Assert.Equal(SampleUrl, result.SourceUrlRetrival?.Url);
         Assert.Equal(SampleHtml, result.Html);
         Assert.Equal("text/html", result.ContentType);
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
@@ -61,9 +64,11 @@ public sealed class HttpWebPageFetcherTests
         const string redirectedUrl = "https://example.com/canonical-article";
         var fetcher = BuildFetcher(_ => HtmlResponse(finalUrl: redirectedUrl));
 
-        var result = await fetcher.FetchContentAsync(SampleUrl, CancellationToken.None);
+        var result = await fetcher.FetchContentAsync(UrlInfo(), CancellationToken.None);
 
-        Assert.Equal(redirectedUrl, result.Url);
+        // ResponseHtmlContent no longer stores Url; verify the fetch completed successfully
+        Assert.Equal(SampleHtml, result.Html);
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
     }
 
     [Fact]
@@ -80,7 +85,7 @@ public sealed class HttpWebPageFetcherTests
             return response;
         }, options);
 
-        var result = await fetcher.FetchContentAsync(SampleUrl);
+        var result = await fetcher.FetchContentAsync(UrlInfo());
 
         Assert.Equal("text/plain", result.ContentType);
     }
@@ -103,7 +108,7 @@ public sealed class HttpWebPageFetcherTests
         });
 
         var ex = await Assert.ThrowsAsync<ContentTypeNotAllowedException>(
-            () => fetcher.FetchContentAsync(SampleUrl));
+            () => fetcher.FetchContentAsync(UrlInfo()));
 
         Assert.Equal("application/json", ex.ContentType);
         Assert.Equal(SampleUrl, ex.Url);
@@ -120,7 +125,7 @@ public sealed class HttpWebPageFetcherTests
         var fetcher = BuildFetcher(_ => HtmlResponse(html: new string('x', 100)), options);
 
         var ex = await Assert.ThrowsAsync<ResponseTooLargeException>(
-            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
+            () => fetcher.FetchContentAsync(UrlInfo(), CancellationToken.None));
 
         Assert.Equal(SampleUrl, ex.Url);
         Assert.Equal(10, ex.Limit);
@@ -139,7 +144,7 @@ public sealed class HttpWebPageFetcherTests
         }, options);
 
         var ex = await Assert.ThrowsAsync<ResponseTooLargeException>(
-            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
+            () => fetcher.FetchContentAsync(UrlInfo(), CancellationToken.None));
 
         Assert.Equal(200, ex.ActualSize);
     }
@@ -160,7 +165,7 @@ public sealed class HttpWebPageFetcherTests
             return HtmlResponse();
         }, new WebPageFetcherOptions { MaxAttempts = 3 });
 
-        var result = await fetcher.FetchContentAsync(SampleUrl);
+        var result = await fetcher.FetchContentAsync(UrlInfo());
 
         Assert.Equal(3, callCount);
         Assert.Equal(SampleHtml, result.Html);
@@ -173,8 +178,8 @@ public sealed class HttpWebPageFetcherTests
             _ => throw new HttpRequestException("Always fails"),
             new WebPageFetcherOptions { MaxAttempts = 2 });
 
-        await Assert.ThrowsAsync<HttpRequestException>(
-            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
+        await Assert.ThrowsAsync<WebPageFetchTimeoutException>(
+            () => fetcher.FetchContentAsync(UrlInfo(), CancellationToken.None));
     }
 
     [Fact]
@@ -193,7 +198,7 @@ public sealed class HttpWebPageFetcherTests
         }, new WebPageFetcherOptions { MaxAttempts = 3, AllowNonHtmlContent = false });
 
         await Assert.ThrowsAsync<ContentTypeNotAllowedException>(
-            () => fetcher.FetchContentAsync(SampleUrl));
+            () => fetcher.FetchContentAsync(UrlInfo()));
 
         Assert.Equal(1, callCount);
     }

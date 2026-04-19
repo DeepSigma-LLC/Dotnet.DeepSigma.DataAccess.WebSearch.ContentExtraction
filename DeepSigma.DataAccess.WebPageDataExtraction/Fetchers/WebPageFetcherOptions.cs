@@ -8,7 +8,9 @@ public sealed class WebPageFetcherOptions
     /// </summary>
     public string UserAgent { get; set; } = "DefaultUserAgent/1.0";
 
-    /// <summary>Per-request timeout. Defaults to 30 seconds.</summary>
+    /// <summary>
+    /// Per-request timeout. Defaults to 30 seconds.
+    /// </summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
@@ -17,12 +19,14 @@ public sealed class WebPageFetcherOptions
     /// </summary>
     public int MaxAttempts { get; set; } = 3;
 
-    /// <summary>Maximum allowed response size in bytes. Defaults to 10 MB.</summary>
+    /// <summary>
+    /// Maximum allowed response size in bytes. Defaults to 10 MB.
+    /// </summary>
     public long MaxResponseSizeBytes { get; set; } = 10 * 1024 * 1024;
 
     /// <summary>
     /// When <c>false</c> (default), responses whose Content-Type is not <c>text/html</c>
-    /// will cause <see cref="HttpWebPageFetcher.FetchContentAsync(string, CancellationToken)"/> to throw
+    /// will cause <see cref="HttpWebPageFetcher.FetchContentAsync"/> to throw
     /// a <see cref="Exceptions.ContentTypeNotAllowedException"/>.
     /// </summary>
     public bool AllowNonHtmlContent { get; set; } = false;
