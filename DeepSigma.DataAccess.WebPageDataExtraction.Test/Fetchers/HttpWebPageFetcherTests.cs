@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Exceptions;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using Xunit;
 
@@ -38,7 +39,7 @@ public sealed class HttpWebPageFetcherTests
     }
 
     // ---------------------------------------------------------------------------
-    // Tests
+    // Happy-path tests
     // ---------------------------------------------------------------------------
 
     [Fact]
@@ -62,24 +63,7 @@ public sealed class HttpWebPageFetcherTests
 
         var result = await fetcher.FetchContentAsync(SampleUrl, CancellationToken.None);
 
-        Assert.Equal(redirectedUrl, result.SourceUrlRetrival?.Url);
-    }
-
-    [Fact]
-    public async Task FetchAsync_Throws_WhenContentTypeIsNotHtml()
-    {
-        var fetcher = BuildFetcher(_ =>
-        {
-            var response = new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent("{\"key\":\"value\"}")
-            };
-            response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            return response;
-        });
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => fetcher.FetchContentAsync(SampleUrl));
+        Assert.Equal(redirectedUrl, result.Url);
     }
 
     [Fact]
@@ -101,6 +85,69 @@ public sealed class HttpWebPageFetcherTests
         Assert.Equal("text/plain", result.ContentType);
     }
 
+    // ---------------------------------------------------------------------------
+    // Content-type tests
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public async Task FetchAsync_Throws_ContentTypeNotAllowedException_WhenContentTypeIsNotHtml()
+    {
+        var fetcher = BuildFetcher(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"key\":\"value\"}")
+            };
+            response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            return response;
+        });
+
+        var ex = await Assert.ThrowsAsync<ContentTypeNotAllowedException>(
+            () => fetcher.FetchContentAsync(SampleUrl));
+
+        Assert.Equal("application/json", ex.ContentType);
+        Assert.Equal(SampleUrl, ex.Url);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Size-limit tests
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public async Task FetchAsync_Throws_ResponseTooLargeException_WhenResponseExceedsMaxSize()
+    {
+        var options = new WebPageFetcherOptions { MaxResponseSizeBytes = 10 };
+        var fetcher = BuildFetcher(_ => HtmlResponse(html: new string('x', 100)), options);
+
+        var ex = await Assert.ThrowsAsync<ResponseTooLargeException>(
+            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
+
+        Assert.Equal(SampleUrl, ex.Url);
+        Assert.Equal(10, ex.Limit);
+        Assert.True(ex.ActualSize > 10);
+    }
+
+    [Fact]
+    public async Task FetchAsync_Throws_ResponseTooLargeException_WhenContentLengthExceedsMaxSize()
+    {
+        var options = new WebPageFetcherOptions { MaxResponseSizeBytes = 10 };
+        var fetcher = BuildFetcher(_ =>
+        {
+            var response = HtmlResponse(html: new string('x', 100));
+            response.Content.Headers.ContentLength = 200;
+            return response;
+        }, options);
+
+        var ex = await Assert.ThrowsAsync<ResponseTooLargeException>(
+            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
+
+        Assert.Equal(200, ex.ActualSize);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Retry tests
+    // ---------------------------------------------------------------------------
+
     [Fact]
     public async Task FetchAsync_RetriesOnHttpRequestException_AndSucceedsOnThirdAttempt()
     {
@@ -111,7 +158,7 @@ public sealed class HttpWebPageFetcherTests
             if (callCount < 3)
                 throw new HttpRequestException("Transient network error");
             return HtmlResponse();
-        }, new WebPageFetcherOptions { MaxRetries = 3 });
+        }, new WebPageFetcherOptions { MaxAttempts = 3 });
 
         var result = await fetcher.FetchContentAsync(SampleUrl);
 
@@ -120,24 +167,35 @@ public sealed class HttpWebPageFetcherTests
     }
 
     [Fact]
-    public async Task FetchAsync_ThrowsHttpRequestException_WhenRetriesExhausted()
+    public async Task FetchAsync_ThrowsHttpRequestException_WhenAttemptsExhausted()
     {
         var fetcher = BuildFetcher(
             _ => throw new HttpRequestException("Always fails"),
-            new WebPageFetcherOptions { MaxRetries = 2 });
+            new WebPageFetcherOptions { MaxAttempts = 2 });
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
     }
 
     [Fact]
-    public async Task FetchAsync_Throws_WhenResponseExceedsMaxSize()
+    public async Task FetchAsync_DoesNotRetry_OnDomainException()
     {
-        var options = new WebPageFetcherOptions { MaxResponseSizeBytes = 10 };
-        var fetcher = BuildFetcher(_ => HtmlResponse(html: new string('x', 100)), options);
+        int callCount = 0;
+        var fetcher = BuildFetcher(_ =>
+        {
+            callCount++;
+            var r = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}")
+            };
+            r.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            return r;
+        }, new WebPageFetcherOptions { MaxAttempts = 3, AllowNonHtmlContent = false });
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => fetcher.FetchContentAsync(SampleUrl, CancellationToken.None));
+        await Assert.ThrowsAsync<ContentTypeNotAllowedException>(
+            () => fetcher.FetchContentAsync(SampleUrl));
+
+        Assert.Equal(1, callCount);
     }
 
     // ---------------------------------------------------------------------------

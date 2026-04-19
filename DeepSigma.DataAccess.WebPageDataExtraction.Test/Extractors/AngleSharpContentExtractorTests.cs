@@ -1,6 +1,7 @@
 using System.Net;
 using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using Xunit;
 
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Test.Extractors;
@@ -137,5 +138,56 @@ public sealed class AngleSharpContentExtractorTests
         var result = await _extractor.ExtractContentAsync(Page(html), CancellationToken.None);
 
         Assert.Equal(PageUrl, result.SourceHtmlContent?.Url);
+    }
+
+    [Fact]
+    public async Task ExtractAsync_CustomNoisySelector_RemovesMatchingElements()
+    {
+        var html = """
+            <html><body>
+              <div class="cookie-banner"><p>Accept cookies</p></div>
+              <main><p>Real content.</p></main>
+            </body></html>
+            """;
+
+        var options = new AngleSharpExtractorOptions
+        {
+            NoisySelectors = [.. AngleSharpExtractorOptions.DefaultNoisySelectors, ".cookie-banner"]
+        };
+        var extractor = new AngleSharpContentExtractor(options);
+
+        var result = await extractor.ExtractContentAsync(Page(html), CancellationToken.None);
+
+        Assert.Contains("Real content.", result.MainText);
+        Assert.DoesNotContain("Accept cookies", result.MainText);
+    }
+
+    [Fact]
+    public async Task FallbackExtractor_UsedWhenSmartReaderReturnsEmpty()
+    {
+        const string nonArticleHtml = """
+            <html><body>
+              <p>Product feature one.</p>
+              <p>Product feature two.</p>
+            </body></html>
+            """;
+
+        var smartReader = new SmartReaderContentExtractor();
+        var angleSharp = new AngleSharpContentExtractor();
+
+        var page = new ResponseHtmlContent(
+            Url: PageUrl,
+            Html: nonArticleHtml,
+            FetchedAt: DateTimeOffset.UtcNow,
+            ContentType: "text/html",
+            StatusCode: HttpStatusCode.OK);
+
+        var smart = await smartReader.ExtractContentAsync(page, CancellationToken.None);
+        var result = string.IsNullOrWhiteSpace(smart.MainText)
+            ? await angleSharp.ExtractContentAsync(page, CancellationToken.None)
+            : smart;
+
+        Assert.Contains("Product feature one.", result.MainText);
+        Assert.Contains("Product feature two.", result.MainText);
     }
 }

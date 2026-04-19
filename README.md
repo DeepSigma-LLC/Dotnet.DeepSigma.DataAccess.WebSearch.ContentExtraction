@@ -46,7 +46,7 @@ A .NET 10 library for fetching and extracting clean, structured content from web
 - **`PlaywrightWebPageFetcher`** — renders pages in headless Chromium and captures the post-JavaScript HTML; lazy browser initialisation with thread-safe setup
 - **`SmartReaderContentExtractor`** — extracts article title, byline, excerpt, publication date, language, and clean plain text using [SmartReader](https://github.com/strumenta/SmartReader) (a .NET port of Mozilla Readability); automatically strips navigation, ads, footers, and sidebars
 - **`AngleSharpContentExtractor`** — CSS-selector-based fallback extractor powered by [AngleSharp](https://anglesharp.github.io/); useful for non-article pages or when Readability returns no readable content
-- Clean interfaces (`IHtmlRetriver`, `IContentExtractor`) from [`DeepSigma.DataAccess.WebSearch.Abstraction`](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.Abstraction) for easy substitution and testing
+- Clean interfaces (`IHtmlRetriever`, `IContentExtractor`) from [`DeepSigma.DataAccess.WebSearch.Abstraction`](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.Abstraction) for easy substitution and testing
 - Structured `ResponseExtractedContent` record — drop-in for ranking, search indexing, or storage pipelines
 - First-class ASP.NET Core DI support via `AddWebPageDataExtraction()`
 
@@ -80,7 +80,7 @@ var fetcher   = HttpWebPageFetcher.Create();
 var extractor = new SmartReaderContentExtractor();
 
 var page    = await fetcher.FetchContentAsync("https://example.com/article");
-var content = await extractor.ExtractedContentAsync(page);
+var content = await extractor.ExtractContentAsync(page);
 
 Console.WriteLine(content.Title);
 Console.WriteLine(content.MainText);
@@ -92,7 +92,7 @@ Console.WriteLine(content.MainText);
 
 ### With ASP.NET Core / Generic Host (DI)
 
-Register all services in one call, then inject `IHtmlRetriver` and `IContentExtractor`
+Register all services in one call, then inject `IHtmlRetriever` and `IContentExtractor`
 wherever you need them.
 
 ```csharp
@@ -113,12 +113,12 @@ builder.Services.AddWebPageDataExtraction(options =>
 using DeepSigma.DataAccess.WebSearch.Abstraction;
 using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
-public class ArticleService(IHtmlRetriver fetcher, IContentExtractor extractor)
+public class ArticleService(IHtmlRetriever fetcher, IContentExtractor extractor)
 {
     public async Task<ResponseExtractedContent> GetArticleAsync(string url, CancellationToken ct = default)
     {
         var page = await fetcher.FetchContentAsync(url, ct);
-        return await extractor.ExtractedContentAsync(page, ct);
+        return await extractor.ExtractContentAsync(page, ct);
     }
 }
 ```
@@ -142,7 +142,7 @@ var fetcher   = HttpWebPageFetcher.Create(options);
 var extractor = new SmartReaderContentExtractor();
 
 var page    = await fetcher.FetchContentAsync("https://example.com/article");
-var content = await extractor.ExtractedContentAsync(page);
+var content = await extractor.ExtractContentAsync(page);
 
 Console.WriteLine($"Title   : {content.Title}");
 Console.WriteLine($"Byline  : {content.Byline}");
@@ -165,8 +165,11 @@ content. See [Playwright setup](#playwright-setup) for the one-time browser inst
 // Program.cs
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extensions;
 
-builder.Services.AddWebPageDataExtraction();
-builder.Services.AddPlaywrightFetcher(userAgent: "MyBot/1.0 (+https://mysite.example/bot)");
+builder.Services.AddWebPageDataExtraction(options =>
+{
+    options.UserAgent = "MyBot/1.0 (+https://mysite.example/bot)";
+});
+builder.Services.AddPlaywrightFetcher();
 ```
 
 **Without DI:**
@@ -175,11 +178,14 @@ builder.Services.AddPlaywrightFetcher(userAgent: "MyBot/1.0 (+https://mysite.exa
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
 
-await using var fetcher = new PlaywrightWebPageFetcher();
-var extractor           = new SmartReaderContentExtractor();
+await using var fetcher = new PlaywrightWebPageFetcher(new WebPageFetcherOptions
+{
+    UserAgent = "MyBot/1.0 (+https://mysite.example/bot)"
+});
+var extractor = new SmartReaderContentExtractor();
 
 var page    = await fetcher.FetchContentAsync("https://example.com/spa-page");
-var content = await extractor.ExtractedContentAsync(page);
+var content = await extractor.ExtractContentAsync(page);
 ```
 
 > `PlaywrightWebPageFetcher` implements `IAsyncDisposable`. Always dispose it (`await using`)
@@ -201,7 +207,7 @@ var fetcher   = HttpWebPageFetcher.Create();
 var extractor = new AngleSharpContentExtractor();
 
 var page    = await fetcher.FetchContentAsync("https://example.com/product");
-var content = await extractor.ExtractedContentAsync(page);
+var content = await extractor.ExtractContentAsync(page);
 
 Console.WriteLine(content.MainText);
 ```
@@ -212,9 +218,9 @@ Console.WriteLine(content.MainText);
 ```csharp
 var page = await fetcher.FetchContentAsync(url, ct);
 
-var smart   = await smartExtractor.ExtractedContentAsync(page, ct);
+var smart   = await smartExtractor.ExtractContentAsync(page, ct);
 var content = string.IsNullOrWhiteSpace(smart.MainText)
-    ? await angleSharpExtractor.ExtractedContentAsync(page, ct)
+    ? await angleSharpExtractor.ExtractContentAsync(page, ct)
     : smart;
 ```
 
@@ -228,7 +234,7 @@ var content = string.IsNullOrWhiteSpace(smart.MainText)
 |---|---|---|---|
 | `UserAgent` | `string` | `"DefaultUserAgent/1.0"` | Value of the `User-Agent` request header |
 | `Timeout` | `TimeSpan` | `00:00:30` | Per-request timeout |
-| `MaxRetries` | `int` | `3` | Maximum attempts (includes the first try); retries use exponential backoff |
+| `MaxAttempts` | `int` | `3` | Total number of attempts (first try + retries); uses exponential backoff with jitter |
 | `MaxResponseSizeBytes` | `long` | `10485760` (10 MB) | Requests exceeding this size throw `InvalidOperationException` |
 | `AllowNonHtmlContent` | `bool` | `false` | When `false`, non-`text/html` responses throw `InvalidOperationException` |
 
@@ -242,8 +248,8 @@ Returned by `IHtmlRetriver.FetchContentAsync`. Contains the raw fetch output.
 
 | Property | Type | Description |
 |---|---|---|
-| `URL` | `string` | The URL of the fetched page |
-| `HTML` | `string` | Full HTML source of the page |
+| `Url` | `string` | The URL of the fetched page |
+| `Html` | `string` | Full HTML source of the page |
 | `FetchedAt` | `DateTimeOffset` | Timestamp when the content was fetched |
 | `ContentType` | `string?` | Value of the `Content-Type` media type header (e.g. `"text/html"`) |
 | `StatusCode` | `HttpStatusCode` | HTTP response status code |
@@ -302,7 +308,7 @@ The library is split into two independent concerns connected by a single interme
 
 ```
 ┌──────────────────────────────────┐
-│           IHtmlRetriver          │
+│           IHtmlRetriever         │
 │                                  │
 │  HttpWebPageFetcher              │  ← HTTP with retry (default)
 │  PlaywrightWebPageFetcher        │  ← headless Chromium (JS pages)
@@ -361,7 +367,7 @@ DeepSigma.DataAccess.WebPageDataExtraction.Test/
 | [AngleSharp](https://www.nuget.org/packages/AngleSharp) | HTML parsing for the AngleSharp extractor |
 | [SmartReader](https://www.nuget.org/packages/SmartReader) | Mozilla Readability port for article extraction |
 | [Microsoft.Playwright](https://www.nuget.org/packages/Microsoft.Playwright) | Headless browser automation |
-| [DeepSigma.DataAccess.WebSearch.Abstraction](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.Abstraction) | Shared interfaces (`IHtmlRetriver`, `IContentExtractor`) and models |
+| [DeepSigma.DataAccess.WebSearch.Abstraction](https://www.nuget.org/packages/DeepSigma.DataAccess.WebSearch.Abstraction) | Shared interfaces (`IHtmlRetriever`, `IContentExtractor`) and models |
 | [Microsoft.Extensions.DependencyInjection.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection.Abstractions) | DI integration |
 | [Microsoft.Extensions.Http](https://www.nuget.org/packages/Microsoft.Extensions.Http) | `IHttpClientFactory` / typed client support |
 

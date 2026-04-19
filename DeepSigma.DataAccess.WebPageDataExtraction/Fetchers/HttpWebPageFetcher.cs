@@ -1,6 +1,7 @@
 using System.Net;
 using DeepSigma.DataAccess.WebSearch.Abstraction;
 using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
+using DeepSigma.DataAccess.WebSearch.ContentExtraction.Exceptions;
 
 namespace DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 
@@ -12,6 +13,7 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
 {
     private readonly HttpClient _httpClient;
     private readonly WebPageFetcherOptions _options;
+    private static readonly Random _jitter = new();
 
     /// <summary>
     /// Initialises the fetcher with a pre-configured <see cref="HttpClient"/> and optional options.
@@ -31,11 +33,11 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
         _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(_options.UserAgent);
     }
 
-	/// <summary>
-	/// Creates a standalone <see cref="HttpWebPageFetcher"/> with gzip/brotli/deflate
-	/// decompression and auto-redirect enabled — no DI required.
-	/// </summary>
-	public static HttpWebPageFetcher Create(WebPageFetcherOptions? options = null)
+    /// <summary>
+    /// Creates a standalone <see cref="HttpWebPageFetcher"/> with gzip/brotli/deflate
+    /// decompression and auto-redirect enabled — no DI required.
+    /// </summary>
+    public static HttpWebPageFetcher Create(WebPageFetcherOptions? options = null)
     {
         var handler = new HttpClientHandler
         {
@@ -49,26 +51,25 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
     /// <summary>
     /// Asynchronously retrieves the HTML content from the specified URL.
     /// </summary>
-    /// <param name="URL">The URL of the web page to fetch content from. Must be a valid, absolute URL.</param>
+    /// <param name="url">The URL of the web page to fetch content from. Must be a valid, absolute URL.</param>
     /// <param name="cancellationToken">An optional cancellation token that can be used to cancel the operation.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseHtmlContent object with
     /// the retrieved HTML content.</returns>
-	public async Task<ResponseHtmlContent> FetchContentAsync(string URL, CancellationToken cancellationToken = default)
-	{
-		ResponseUrlRetrival response = new(
-            Url: URL,
+    public async Task<ResponseHtmlContent> FetchContentAsync(string url, CancellationToken cancellationToken = default)
+    {
+        ResponseUrlRetrival response = new(
+            Url: url,
             Title: null,
             Snippet: null,
             SearchEngine: "Manual",
-			RetrievedAt: DateTimeOffset.UtcNow
-        );
-        return await FetchContentAsync(response, cancellationToken);
-	}
+            RetrievedAt: DateTimeOffset.UtcNow);
+        return await FetchContentAsync(response, cancellationToken).ConfigureAwait(false);
+    }
 
-	/// <inheritdoc/>
-	public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival responseUrl, CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public async Task<ResponseHtmlContent> FetchContentAsync(ResponseUrlRetrival responseUrl, CancellationToken cancellationToken = default)
     {
-		int attempt = 0;
+        int attempt = 0;
         while (true)
         {
             attempt++;
@@ -78,7 +79,7 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
                 cts.CancelAfter(_options.Timeout);
 
                 using var response = await _httpClient.GetAsync(
-                    responseUrl.Url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                    responseUrl.Url, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
 
                 var contentType = response.Content.Headers.ContentType?.MediaType;
@@ -86,36 +87,41 @@ public sealed class HttpWebPageFetcher : IHtmlRetriever
                     && contentType != null
                     && !contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidOperationException($"Unexpected content type: {contentType}");
+                    throw new ContentTypeNotAllowedException(contentType, responseUrl.Url);
                 }
 
                 var contentLength = response.Content.Headers.ContentLength;
                 if (contentLength.HasValue && contentLength.Value > _options.MaxResponseSizeBytes)
-                    throw new InvalidOperationException(
-                        $"Response size exceeds limit: {contentLength.Value} bytes");
+                    throw new ResponseTooLargeException(contentLength.Value, _options.MaxResponseSizeBytes, responseUrl.Url);
 
-                var html = await response.Content.ReadAsStringAsync(cts.Token);
+                var html = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
                 if (html.Length > _options.MaxResponseSizeBytes)
-                    throw new InvalidOperationException(
-                        $"Response size exceeds limit: {html.Length} chars");
+                    throw new ResponseTooLargeException(html.Length, _options.MaxResponseSizeBytes, responseUrl.Url);
 
                 var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? responseUrl.Url;
                 return new ResponseHtmlContent(
-                    Url: finalUrl, 
+                    Url: finalUrl,
                     Html: html,
                     FetchedAt: DateTimeOffset.UtcNow,
                     StatusCode: response.StatusCode,
                     ContentType: contentType,
                     SourceUrlRetrival: responseUrl);
             }
-            catch (Exception ex) when (attempt < _options.MaxRetries && IsRetryable(ex, cancellationToken))
+            catch (HttpRequestException) when (attempt < _options.MaxAttempts && !cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), cancellationToken);
+                await DelayWithJitterAsync(attempt, cancellationToken).ConfigureAwait(false);
+            }
+            catch (TaskCanceledException) when (attempt < _options.MaxAttempts && !cancellationToken.IsCancellationRequested)
+            {
+                await DelayWithJitterAsync(attempt, cancellationToken).ConfigureAwait(false);
             }
         }
     }
 
-    private static bool IsRetryable(Exception ex, CancellationToken ct) =>
-        !ct.IsCancellationRequested
-        && ex is HttpRequestException or TaskCanceledException;
+    private static Task DelayWithJitterAsync(int attempt, CancellationToken ct)
+    {
+        var baseMs = (int)Math.Pow(2, attempt - 1) * 1000;
+        var jitterMs = _jitter.Next(0, 500);
+        return Task.Delay(baseMs + jitterMs, ct);
+    }
 }

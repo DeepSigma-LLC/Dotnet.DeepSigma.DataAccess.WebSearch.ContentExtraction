@@ -19,25 +19,24 @@ public sealed class SmartReaderContentExtractor : IContentExtractor
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation. Optional.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ResponseExtractedContent object
     /// with the extracted content.</returns>
-	public async Task<ResponseExtractedContent> ExtractContentAsync(string html, string? url = null, CancellationToken cancellationToken = default)
-	{
+    public async Task<ResponseExtractedContent> ExtractContentAsync(string html, string? url = null, CancellationToken cancellationToken = default)
+    {
         ResponseHtmlContent pageResponseContent = new(
             Url: url ?? string.Empty,
             Html: html,
             FetchedAt: DateTimeOffset.UtcNow,
             ContentType: "text/html",
-            StatusCode: System.Net.HttpStatusCode.OK
-        );
-        return await ExtractContentAsync(pageResponseContent, cancellationToken);
-	}
+            StatusCode: System.Net.HttpStatusCode.OK);
+        return await ExtractContentAsync(pageResponseContent, cancellationToken).ConfigureAwait(false);
+    }
 
-	/// <inheritdoc/>
-	public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent htmlContent, CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public async Task<ResponseExtractedContent> ExtractContentAsync(ResponseHtmlContent htmlContent, CancellationToken cancellationToken = default)
     {
         // NOTE: Reader.ParseArticleAsync (static) does not use the provided HTML string in
         // SmartReader 0.11.0 — use the instance constructor instead.
         using var reader = new Reader(htmlContent.Url, htmlContent.Html);
-        var article = await reader.GetArticleAsync(cancellationToken);
+        var article = await reader.GetArticleAsync(cancellationToken).ConfigureAwait(false);
 
         var mainText = article.IsReadable
             ? article.TextContent?.Trim() ?? string.Empty
@@ -49,15 +48,15 @@ public sealed class SmartReaderContentExtractor : IContentExtractor
             : null;
 
         return new ResponseExtractedContent(
-			MainText: mainText,
-			Title: NullIfWhiteSpace(article.Title),
+            MainText: mainText,
+            Title: NullIfWhiteSpace(article.Title),
             Byline: NullIfWhiteSpace(article.Byline),
             Language: NullIfWhiteSpace(article.Language),
-			Snippet: NullIfWhiteSpace(article.Excerpt),
-			PublishedAt: publishedAt);
+            Snippet: NullIfWhiteSpace(article.Excerpt),
+            PublishedAt: publishedAt,
+            SourceHtmlContent: htmlContent);
     }
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
-
 }
