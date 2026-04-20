@@ -75,13 +75,21 @@ dotnet add package DeepSigma.DataAccess.WebSearch.ContentExtraction
 ```csharp
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
 // Create instances directly — no DI required
 var fetcher   = HttpWebPageFetcher.Create();
 var extractor = new SmartReaderContentExtractor();
 
-var page    = await fetcher.FetchContentAsync("https://example.com/article");
-var content = await extractor.ExtractContentAsync(page);
+// Wrap the target URL in a ResponseUrlRetrival — the abstraction's URL carrier
+var urlInfo = new ResponseUrlRetrival(
+    Url: "https://example.com/article",
+    Title: null, Snippet: null,
+    SearchEngine: "Direct",
+    RetrievedAt: DateTimeOffset.UtcNow);
+
+var page    = await fetcher.FetchContentAsync(urlInfo);
+var content = await extractor.ExtractContentAsync(page, urlInfo);
 
 Console.WriteLine(content.Title);
 Console.WriteLine(content.MainText);
@@ -104,7 +112,7 @@ builder.Services.AddWebPageDataExtraction(options =>
 {
     options.UserAgent            = "MyBot/1.0 (+https://mysite.example/bot)";
     options.Timeout              = TimeSpan.FromSeconds(60);
-    options.MaxRetries           = 3;
+    options.MaxAttempts          = 3;
     options.MaxResponseSizeBytes = 5 * 1024 * 1024; // 5 MB
 });
 ```
@@ -118,8 +126,12 @@ public class ArticleService(IHtmlRetriever fetcher, IContentExtractor extractor)
 {
     public async Task<ResponseExtractedContent> GetArticleAsync(string url, CancellationToken ct = default)
     {
-        var page = await fetcher.FetchContentAsync(url, ct);
-        return await extractor.ExtractContentAsync(page, ct);
+        var urlInfo = new ResponseUrlRetrival(
+            Url: url, Title: null, Snippet: null,
+            SearchEngine: "Direct", RetrievedAt: DateTimeOffset.UtcNow);
+
+        var page = await fetcher.FetchContentAsync(urlInfo, ct);
+        return await extractor.ExtractContentAsync(page, urlInfo, ct);
     }
 }
 ```
@@ -131,19 +143,26 @@ public class ArticleService(IHtmlRetriever fetcher, IContentExtractor extractor)
 ```csharp
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
 var options = new WebPageFetcherOptions
 {
-    UserAgent  = "MyBot/1.0 (+https://mysite.example/bot)",
-    Timeout    = TimeSpan.FromSeconds(45),
-    MaxRetries = 2
+    UserAgent   = "MyBot/1.0 (+https://mysite.example/bot)",
+    Timeout     = TimeSpan.FromSeconds(45),
+    MaxAttempts = 2
 };
 
 var fetcher   = HttpWebPageFetcher.Create(options);
 var extractor = new SmartReaderContentExtractor();
 
-var page    = await fetcher.FetchContentAsync("https://example.com/article");
-var content = await extractor.ExtractContentAsync(page);
+var urlInfo = new ResponseUrlRetrival(
+    Url: "https://example.com/article",
+    Title: null, Snippet: null,
+    SearchEngine: "Direct",
+    RetrievedAt: DateTimeOffset.UtcNow);
+
+var page    = await fetcher.FetchContentAsync(urlInfo);
+var content = await extractor.ExtractContentAsync(page, urlInfo);
 
 Console.WriteLine($"Title   : {content.Title}");
 Console.WriteLine($"Byline  : {content.Byline}");
@@ -178,6 +197,7 @@ builder.Services.AddPlaywrightFetcher();
 ```csharp
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
 await using var fetcher = new PlaywrightWebPageFetcher(new WebPageFetcherOptions
 {
@@ -185,8 +205,14 @@ await using var fetcher = new PlaywrightWebPageFetcher(new WebPageFetcherOptions
 });
 var extractor = new SmartReaderContentExtractor();
 
-var page    = await fetcher.FetchContentAsync("https://example.com/spa-page");
-var content = await extractor.ExtractContentAsync(page);
+var urlInfo = new ResponseUrlRetrival(
+    Url: "https://example.com/spa-page",
+    Title: null, Snippet: null,
+    SearchEngine: "Direct",
+    RetrievedAt: DateTimeOffset.UtcNow);
+
+var page    = await fetcher.FetchContentAsync(urlInfo);
+var content = await extractor.ExtractContentAsync(page, urlInfo);
 ```
 
 > `PlaywrightWebPageFetcher` implements `IAsyncDisposable`. Always dispose it (`await using`)
@@ -203,12 +229,19 @@ Readability algorithm returns no readable content.
 ```csharp
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Fetchers;
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Extractors;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
 
 var fetcher   = HttpWebPageFetcher.Create();
 var extractor = new AngleSharpContentExtractor();
 
-var page    = await fetcher.FetchContentAsync("https://example.com/product");
-var content = await extractor.ExtractContentAsync(page);
+var urlInfo = new ResponseUrlRetrival(
+    Url: "https://example.com/product",
+    Title: null, Snippet: null,
+    SearchEngine: "Direct",
+    RetrievedAt: DateTimeOffset.UtcNow);
+
+var page    = await fetcher.FetchContentAsync(urlInfo);
+var content = await extractor.ExtractContentAsync(page, urlInfo);
 
 Console.WriteLine(content.MainText);
 ```
@@ -217,11 +250,11 @@ Console.WriteLine(content.MainText);
 `AngleSharpContentExtractor` when `MainText` is empty:
 
 ```csharp
-var page = await fetcher.FetchContentAsync(url, ct);
+var page = await fetcher.FetchContentAsync(urlInfo, ct);
 
-var smart   = await smartExtractor.ExtractContentAsync(page, ct);
+var smart   = await smartExtractor.ExtractContentAsync(page, urlInfo, ct);
 var content = string.IsNullOrWhiteSpace(smart.MainText)
-    ? await angleSharpExtractor.ExtractContentAsync(page, ct)
+    ? await angleSharpExtractor.ExtractContentAsync(page, urlInfo, ct)
     : smart;
 ```
 
@@ -260,11 +293,16 @@ fetch failures as a group or handle specific cases individually.
 
 ```csharp
 using DeepSigma.DataAccess.WebSearch.ContentExtraction.Exceptions;
+using DeepSigma.DataAccess.WebSearch.Abstraction.Model;
+
+var urlInfo = new ResponseUrlRetrival(
+    Url: url, Title: null, Snippet: null,
+    SearchEngine: "Direct", RetrievedAt: DateTimeOffset.UtcNow);
 
 try
 {
-    var page = await fetcher.FetchContentAsync(url, cancellationToken);
-    var content = await extractor.ExtractContentAsync(page, cancellationToken);
+    var page = await fetcher.FetchContentAsync(urlInfo, cancellationToken);
+    var content = await extractor.ExtractContentAsync(page, urlInfo, cancellationToken);
 }
 catch (WebPageFetchTimeoutException ex)
 {
@@ -289,32 +327,31 @@ catch (WebPageFetchException ex)
 
 ### `ResponseHtmlContent`
 
-Returned by `IHtmlRetriver.FetchContentAsync`. Contains the raw fetch output.
+Returned by `IHtmlRetriever.FetchContentAsync`. Contains the raw fetch output.
 
 | Property | Type | Description |
 |---|---|---|
-| `Url` | `string` | The URL of the fetched page |
 | `Html` | `string` | Full HTML source of the page |
 | `FetchedAt` | `DateTimeOffset` | Timestamp when the content was fetched |
 | `ContentType` | `string?` | Value of the `Content-Type` media type header (e.g. `"text/html"`) |
 | `StatusCode` | `HttpStatusCode` | HTTP response status code |
-| `SourceUrlRetrival` | `ResponseUrlRetrival?` | Optional metadata about the URL source |
 
 ---
 
 ### `ResponseExtractedContent`
 
-Returned by `IContentExtractor.ExtractedContentAsync`. Contains the structured, cleaned content.
+Returned by `IContentExtractor.ExtractContentAsync`. Contains the structured, cleaned content.
 
 | Property | Type | Description |
 |---|---|---|
+| `SourceUrlRetrival` | `ResponseUrlRetrival` | The URL retrieval record passed to `ExtractContentAsync` |
+| `SourceHtmlContent` | `ResponseHtmlContent?` | Reference back to the source HTML |
 | `MainText` | `string` | Clean, plain-text body of the article (empty string when not readable) |
 | `Title` | `string?` | Page or article title |
 | `Byline` | `string?` | Author / byline (populated by `SmartReaderContentExtractor`) |
 | `Snippet` | `string?` | Short summary or meta description |
 | `Language` | `string?` | BCP 47 language tag (e.g. `"en"`, `"fr"`) |
 | `PublishedAt` | `DateTimeOffset?` | Publication date parsed from page metadata; `null` if not found |
-| `SourceHtmlContent` | `ResponseHtmlContent?` | Optional reference back to the source HTML |
 
 ---
 
@@ -359,7 +396,9 @@ The library is split into two independent concerns connected by a single interme
 │  PlaywrightWebPageFetcher        │  ← headless Chromium (JS pages)
 └────────────────┬─────────────────┘
                  │ ResponseHtmlContent
-                 │  (URL, HTML, FetchedAt, ContentType, StatusCode)
+                 │  (Html, FetchedAt, ContentType, StatusCode)
+                 │
+                 │ + ResponseUrlRetrival  (passed through from caller)
                  ▼
 ┌──────────────────────────────────┐
 │         IContentExtractor        │
@@ -368,7 +407,7 @@ The library is split into two independent concerns connected by a single interme
 │  AngleSharpContentExtractor      │  ← CSS selectors (fallback)
 └────────────────┬─────────────────┘
                  │ ResponseExtractedContent
-                 │  (Title, Byline, Snippet, MainText, Language, PublishedAt)
+                 │  (SourceUrlRetrival, Title, Byline, Snippet, MainText, Language, PublishedAt)
                  ▼
           downstream use
     (indexing, ranking, storage)
